@@ -28,6 +28,8 @@ import 'package:just_audio/just_audio.dart';
 import '../screens/phone_plus_screen.dart';
 import '../services/prophetie_analysis_service.dart';
 import '../services/audio_transcription_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/prophetie_provider.dart';
 
 Map<String, dynamic>? tryParseJson(String input) {
   try {
@@ -75,6 +77,7 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     });
 
     _checkInternetAndLoadData();
+    Provider.of<ProphetieProvider>(context, listen: false).loadProphetien();
   }
 
   /// Shared logic for creating and analyzing a new Prophetie.
@@ -683,9 +686,9 @@ class ProphetienScreenState extends State<ProphetienScreen> {
               ),
               const SizedBox(height: 6),
               Expanded(
-                child: Builder(
-                  builder: (context) {
-                    final all = prophetien;
+                child: Consumer<ProphetieProvider>(
+                  builder: (context, prophetieProvider, child) {
+                    final all = prophetieProvider.prophetien;
                     // Prophetien are already sorted by timestamp descending in loadProphetienFromFirestore.
                     final filtered = selectedFilter == 'Alle'
                         ? all
@@ -718,7 +721,7 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                       slivers: [
                         CupertinoSliverRefreshControl(
                           onRefresh: () async {
-                            await loadProphetienFromFirestore();
+                            await prophetieProvider.loadProphetien();
                             await HapticFeedback.mediumImpact();
                             setState(() {});
                           },

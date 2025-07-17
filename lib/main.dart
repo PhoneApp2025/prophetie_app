@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uni_links/uni_links.dart';
 import 'dart:async';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,18 +9,16 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/auth_gate.dart';
-import 'screens/onboarding_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'screens/phone_plus_screen.dart';
-import 'package:prophetie_app/screens/phone_plus_screen.dart'; // for _verifyReceipt
-import 'package:prophetie_app/widgets/main_navigation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/login_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:ui';
 import 'screens/import_screen.dart';
-
-const String _kSharedSecret = '18dc02c00e9d4749b536f17223bdd554';
+import 'package:prophetie_app/widgets/blurred_dialog.dart';
+import 'package:prophetie_app/widgets/styled_card.dart';
+import 'package:prophetie_app/screens/phone_plus_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:prophetie_app/providers/prophetie_provider.dart';
+import 'package:prophetie_app/providers/traum_provider.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -27,6 +26,7 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: "lib/.env");
 
   await initializeDateFormatting('de_DE', null);
 
@@ -54,7 +54,15 @@ Future<void> main() async {
     await prefs.setBool('alreadyLaunched', true);
   }
 
-  runApp(MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => ProphetieProvider()),
+        ChangeNotifierProvider(create: (context) => TraumProvider()),
+      ],
+      child: MyApp(),
+    ),
+  );
 }
 
 /// Widget to guard subscription state: shows PhonePlusScreen if no active plan
@@ -88,7 +96,7 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     const sandboxUrl = 'https://sandbox.itunes.apple.com/verifyReceipt';
     final payload = json.encode({
       'receipt-data': receiptData,
-      'password': _kSharedSecret, // or import your shared secret constant
+      'password': dotenv.env['SHARED_SECRET'], // or import your shared secret constant
     });
     // First try production
     final prodRes = await http.post(
@@ -362,173 +370,3 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class BlurredDialog extends StatelessWidget {
-  final Widget child;
-
-  const BlurredDialog({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-          child: Builder(
-            builder: (context) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [
-                            Colors.white.withValues(alpha: 0.25),
-                            Colors.white.withValues(alpha: 0.05),
-                          ]
-                        : [
-                            Colors.white.withValues(alpha: 0.9),
-                            Colors.white.withValues(alpha: 0.8),
-                          ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : Colors.white.withValues(alpha: 0.4),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 30,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(24),
-                child: child,
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Custom StyledCard widget as requested
-class StyledCard extends StatefulWidget {
-  final String imageUrl;
-  final String title;
-  final String author;
-  final VoidCallback onOpen;
-
-  const StyledCard({
-    super.key,
-    required this.imageUrl,
-    required this.title,
-    required this.author,
-    required this.onOpen,
-  });
-
-  @override
-  State<StyledCard> createState() => _StyledCardState();
-}
-
-class _StyledCardState extends State<StyledCard> {
-  bool isFavorite = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: Theme.of(context).brightness == Brightness.dark
-            ? const LinearGradient(
-                colors: [Color(0xFF1C1C1E), Color(0xFF2C2C2E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : const LinearGradient(
-                colors: [Color(0xFFFFFFFF), Color(0xFFF3F2F8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: brightness == Brightness.dark
-                ? Colors.black.withValues(alpha: 0.3)
-                : Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Image.network(widget.imageUrl, fit: BoxFit.cover),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: GestureDetector(
-                  onTap: () => setState(() => isFavorite = !isFavorite),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.author,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: widget.onOpen,
-                  icon: const Icon(Icons.arrow_forward_ios, size: 18),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
