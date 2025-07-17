@@ -25,7 +25,6 @@ class Prophetie {
   final String? lastErrorMessage;
   final List<String>? matchingTopics;
   bool? isTopNews;
-  final bool? isAnalyzed;
 
   Prophetie({
     required this.id,
@@ -50,7 +49,6 @@ class Prophetie {
     this.lastErrorMessage,
     this.matchingTopics,
     this.isTopNews,
-    this.isAnalyzed,
   });
 
   Prophetie copyWith({
@@ -76,7 +74,6 @@ class Prophetie {
     String? lastErrorMessage,
     List<String>? matchingTopics,
     bool? isTopNews,
-    bool? isAnalyzed,
   }) {
     return Prophetie(
       id: id ?? this.id,
@@ -102,7 +99,6 @@ class Prophetie {
       lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
       matchingTopics: matchingTopics ?? this.matchingTopics,
       isTopNews: isTopNews ?? this.isTopNews,
-      isAnalyzed: isAnalyzed ?? this.isAnalyzed,
     );
   }
 
@@ -130,7 +126,6 @@ class Prophetie {
       'lastErrorMessage': lastErrorMessage,
       'matchingTopics': matchingTopics ?? [],
       'isTopNews': this.isTopNews ?? false,
-      'isAnalyzed': isAnalyzed,
     };
   }
 
@@ -187,7 +182,6 @@ class Prophetie {
           ?.map((item) => item.toString())
           .toList(),
       isTopNews: json['isTopNews'] ?? false,
-      isAnalyzed: json['isAnalyzed'] as bool? ?? false,
     );
   }
 

@@ -43,10 +43,12 @@ class TraumProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateTraumStatus(String id, ProcessingStatus status) {
+  void updateTraumStatus(String id, ProcessingStatus status,
+      {String? errorMessage}) {
     final index = _traeume.indexWhere((t) => t.id == id);
     if (index != -1) {
-      _traeume[index] = _traeume[index].copyWith(status: status);
+      _traeume[index] =
+          _traeume[index].copyWith(status: status, lastErrorMessage: errorMessage);
       notifyListeners();
       // Update status in Firestore as well
       FirebaseFirestore.instance
@@ -54,7 +56,8 @@ class TraumProvider with ChangeNotifier {
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .collection('traeume')
           .doc(id)
-          .update({'status': status.toString()});
+          .update(
+              {'status': status.toString(), 'lastErrorMessage': errorMessage});
     }
   }
 }

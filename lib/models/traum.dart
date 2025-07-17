@@ -22,7 +22,6 @@ class Traum {
   final String? relatedTopics;
   final String? transcript;
   final bool? isTopNews;
-  final bool? isAnalyzed;
   List<String>? matchingTopics;
   final ProcessingStatus status;
 
@@ -47,7 +46,6 @@ class Traum {
     this.relatedTopics,
     this.transcript,
     this.isTopNews,
-    this.isAnalyzed,
     this.matchingTopics,
     this.status = ProcessingStatus.none,
   });
@@ -73,7 +71,6 @@ class Traum {
     String? relatedTopics,
     String? transcript,
     bool? isTopNews,
-    bool? isAnalyzed,
     List<String>? matchingTopics,
     ProcessingStatus? status,
   }) {
@@ -99,7 +96,6 @@ class Traum {
       relatedTopics: relatedTopics ?? this.relatedTopics,
       transcript: transcript ?? this.transcript,
       isTopNews: isTopNews ?? this.isTopNews,
-      isAnalyzed: isAnalyzed ?? this.isAnalyzed,
       matchingTopics: matchingTopics ?? this.matchingTopics,
       status: status ?? this.status,
     );
@@ -139,7 +135,6 @@ class Traum {
       relatedTopics: parseField(json['relatedTopics']),
       transcript: parseField(json['transcript']),
       isTopNews: json['isTopNews'] as bool? ?? false,
-      isAnalyzed: json['isAnalyzed'] as bool? ?? false,
       matchingTopics: json['matchingTopics'] != null
           ? List<String>.from(json['matchingTopics'])
           : null,
@@ -172,7 +167,6 @@ class Traum {
       'relatedTopics': relatedTopics,
       'transcript': transcript,
       'isTopNews': isTopNews ?? false,
-      'isAnalyzed': isAnalyzed ?? false,
       'matchingTopics': matchingTopics,
       'status': status.toString(),
     };
