@@ -48,7 +48,7 @@ class _AuthGateState extends State<AuthGate> {
                 body: Center(child: CircularProgressIndicator()),
               );
             } else if (snapshot.hasData) {
-              return const MainNavigation();
+              return const SubscriptionGate(child: MainNavigation());
             } else {
               return const LoginScreen();
             }

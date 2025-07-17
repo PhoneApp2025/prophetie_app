@@ -307,23 +307,6 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
                           );
                         }
                         final plan = snapshot.data;
-                        // Zeige Fallback, falls Produkt nicht geladen werden konnte
-                        if (!_available || _products.isEmpty) {
-                          return Column(
-                            children: [
-                              const Text(
-                                'Das Abo-Angebot konnte nicht geladen werden.\nBitte prüfe deine Internetverbindung oder versuche es später erneut.',
-                                style: TextStyle(color: Colors.red),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _initStore,
-                                child: const Text('Erneut versuchen'),
-                              ),
-                            ],
-                          );
-                        }
                         if (plan != null && plan != 'none') {
                           // Already has an active subscription
                           return Column(
@@ -441,7 +424,7 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 TextButton(
-                                  onPressed: _restorePurchases,
+                                  onPressed: () {},
                                   child: const Text(
                                     'Käufe wiederherstellen',
                                     style: TextStyle(
