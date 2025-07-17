@@ -134,7 +134,8 @@ class TraeumeScreenState extends State<TraeumeScreen> {
               );
               traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
             } else {
-              traumProvider.updateTraumStatus(id, ProcessingStatus.failed);
+              traumProvider.updateTraumStatus(id, ProcessingStatus.failed,
+                  errorMessage: "Transcription failed");
             }
           },
         );
@@ -148,7 +149,8 @@ class TraeumeScreenState extends State<TraeumeScreen> {
         traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
       }
     } catch (e) {
-      traumProvider.updateTraumStatus(id, ProcessingStatus.failed);
+      traumProvider.updateTraumStatus(id, ProcessingStatus.failed,
+          errorMessage: e.toString());
     }
   }
 
@@ -897,16 +899,17 @@ class TraeumeScreenState extends State<TraeumeScreen> {
   // Entfernt: _showAddLabelDialog und buildDriveDownloadLink
 
   Widget _buildCard(Traum t) {
-    switch (t.status) {
-      case ProcessingStatus.transcribing:
-        return _buildStatusCard("Transkribiere...", t);
-      case ProcessingStatus.analyzing:
-        return _buildStatusCard("Analysiere...", t);
-      case ProcessingStatus.failed:
-        return _buildStatusCard("Fehlgeschlagen", t, isError: true);
-      default:
-        // Render the normal card for complete or none status
-        break;
+    if (t.status != ProcessingStatus.complete &&
+        t.status != ProcessingStatus.none) {
+      return _buildStatusCard(
+        t.status == ProcessingStatus.transcribing
+            ? "Transkribiere..."
+            : t.status == ProcessingStatus.analyzing
+                ? "Analysiere..."
+                : "Fehlgeschlagen",
+        t,
+        isError: t.status == ProcessingStatus.failed,
+      );
     }
 
     // If analyzed, show normal interactive card with overlay chip at top-right
@@ -1097,14 +1100,6 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (isUploading) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
-                        ),
-                      ],
                     ],
                   ),
                 ],

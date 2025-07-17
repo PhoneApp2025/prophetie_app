@@ -138,7 +138,8 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                   id, ProcessingStatus.complete);
             } else {
               prophetieProvider.updateProphetieStatus(
-                  id, ProcessingStatus.failed);
+                  id, ProcessingStatus.failed,
+                  errorMessage: "Transcription failed");
             }
           },
         );
@@ -152,7 +153,8 @@ class ProphetienScreenState extends State<ProphetienScreen> {
         prophetieProvider.updateProphetieStatus(id, ProcessingStatus.complete);
       }
     } catch (e) {
-      prophetieProvider.updateProphetieStatus(id, ProcessingStatus.failed);
+      prophetieProvider.updateProphetieStatus(id, ProcessingStatus.failed,
+          errorMessage: e.toString());
     }
   }
 
@@ -881,16 +883,17 @@ class ProphetienScreenState extends State<ProphetienScreen> {
   // Entfernt: _showAddLabelDialog und buildDriveDownloadLink
 
   Widget _buildCard(Prophetie p) {
-    switch (p.status) {
-      case ProcessingStatus.transcribing:
-        return _buildStatusCard("Transkribiere...", p);
-      case ProcessingStatus.analyzing:
-        return _buildStatusCard("Analysiere...", p);
-      case ProcessingStatus.failed:
-        return _buildStatusCard("Fehlgeschlagen", p, isError: true);
-      default:
-        // Render the normal card for complete or none status
-        break;
+    if (p.status != ProcessingStatus.complete &&
+        p.status != ProcessingStatus.none) {
+      return _buildStatusCard(
+        p.status == ProcessingStatus.transcribing
+            ? "Transkribiere..."
+            : p.status == ProcessingStatus.analyzing
+                ? "Analysiere..."
+                : "Fehlgeschlagen",
+        p,
+        isError: p.status == ProcessingStatus.failed,
+      );
     }
 
     // If analyzed, show normal interactive card with overlay chip at top-right
@@ -1081,14 +1084,6 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (isUploading) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
-                        ),
-                      ],
                     ],
                   ),
                 ],

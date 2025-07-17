@@ -43,10 +43,12 @@ class ProphetieProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateProphetieStatus(String id, ProcessingStatus status) {
+  void updateProphetieStatus(String id, ProcessingStatus status,
+      {String? errorMessage}) {
     final index = _prophetien.indexWhere((p) => p.id == id);
     if (index != -1) {
-      _prophetien[index] = _prophetien[index].copyWith(status: status);
+      _prophetien[index] = _prophetien[index]
+          .copyWith(status: status, lastErrorMessage: errorMessage);
       notifyListeners();
       // Update status in Firestore as well
       FirebaseFirestore.instance
@@ -54,7 +56,8 @@ class ProphetieProvider with ChangeNotifier {
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .collection('prophetien')
           .doc(id)
-          .update({'status': status.toString()});
+          .update(
+              {'status': status.toString(), 'lastErrorMessage': errorMessage});
     }
   }
 }
