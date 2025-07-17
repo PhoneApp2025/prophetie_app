@@ -26,7 +26,7 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: "lib/.env");
+  await dotenv.load(fileName: ".env");
 
   await initializeDateFormatting('de_DE', null);
 
