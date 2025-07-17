@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/connection_item.dart';
 import '../models/connection_pair.dart';
-import '../secrets.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // for Timestamp
 
 /// Holt Embeddings per Qwen AI
@@ -17,7 +17,7 @@ Future<List<List<double>>?> fetchQwenEmbeddings(List<String> texts) async {
     ),
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $qwenApiKey',
+      'Authorization': 'Bearer ${dotenv.env['QWEN_API_KEY']}',
     },
     body: jsonEncode({'model': 'qwen-embedding-1', 'input': texts}),
   );
@@ -143,7 +143,7 @@ class ConnectionService {
             ),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $qwenApiKey',
+              'Authorization': 'Bearer ${dotenv.env['QWEN_API_KEY']}',
             },
             body: jsonEncode({
               'model': 'qwen-turbo',

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-import '../secrets.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Qwen-AI Analyse-Aufruf für Träume
 Future<Map<String, dynamic>?> analyzeTraumContentWithQwenAI(
@@ -36,7 +36,7 @@ $transcript
     ),
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $qwenApiKey',
+      'Authorization': 'Bearer ${dotenv.env['QWEN_API_KEY']}',
     },
     body: jsonEncode({
       'model': 'qwen-turbo',
