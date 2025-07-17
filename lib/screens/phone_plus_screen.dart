@@ -6,6 +6,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:prophetie_app/services/purchase_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -80,21 +81,16 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
     }
   }
 
-  static const _kProductID = 'phone_plus_yearlyy';
-  final InAppPurchase _iap = InAppPurchase.instance;
-  late final StreamSubscription<List<PurchaseDetails>> _sub;
-
+  static const _kProductID = 'phone_plus_yearly';
+  late final PurchaseService _purchaseService;
   late final ConfettiController _confettiController;
-
-  bool _available = false;
-  List<ProductDetails> _products = [];
   bool _purchasePending = false;
-  bool _restoreRequested = false;
-  bool _purchaseRequested = false;
 
   @override
   void initState() {
     super.initState();
+    _purchaseService = PurchaseService();
+    _purchaseService.init();
     _authListener = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
         // User logged out: navigate back to login
@@ -108,269 +104,6 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 1),
     );
-    // Listen for purchase updates (new purchases)
-    _sub = _iap.purchaseStream.listen(_onPurchaseUpdated);
-
-    // Load available products for purchase
-    _initStore();
-  }
-
-  Future<void> _initStore() async {
-    final available = await _iap.isAvailable();
-    final response = await _iap.queryProductDetails({_kProductID});
-    print('DEBUG: IAP available: $available');
-    print('DEBUG: notFoundIDs: ${response.notFoundIDs}');
-    if (response.error != null) {
-      print('DEBUG: IAP query error: ${response.error}');
-    }
-    if (mounted) {
-      setState(() {
-        _available = available;
-        _products = response.productDetails;
-      });
-      print('DEBUG: Loaded products: ${_products.map((p) => p.id).toList()}');
-    }
-  }
-
-  Future<void> _onPurchaseUpdated(List<PurchaseDetails> purchases) async {
-    print('DEBUG: onPurchaseUpdated triggered with purchases: $purchases');
-    for (var p in purchases) {
-      if (_hasDelivered) return;
-      print('DEBUG: PurchaseDetails: id=${p.productID}, status=${p.status}');
-      if (p.productID != _kProductID) continue;
-      switch (p.status) {
-        case PurchaseStatus.purchased:
-          if (!mounted) return;
-          print('DEBUG: handling purchased status');
-          _purchaseRequested = false; // Reset flag after completed purchase
-          await _deliverProduct(p);
-          _hasDelivered = true;
-          break;
-        case PurchaseStatus.restored:
-          if (!mounted) return;
-          print('DEBUG: handling restored status');
-          if (_purchaseRequested) {
-            _purchaseRequested = false;
-            print('DEBUG: restored after purchase flow, delivering product');
-            await _deliverProduct(p);
-            _hasDelivered = true;
-          } else if (_restoreRequested) {
-            _restoreRequested = false;
-            print('DEBUG: delivering restored product');
-            await _deliverRestoredProduct(p);
-          } else {
-            print(
-              'DEBUG: Restore event received without user request; ignoring',
-            );
-          }
-          break;
-        case PurchaseStatus.error:
-          print('DEBUG: handling error status');
-          _handleError(p.error!);
-          break;
-        case PurchaseStatus.pending:
-          print('DEBUG: handling pending status');
-          setState(() => _purchasePending = true);
-          break;
-        default:
-          print('DEBUG: unhandled status: ${p.status}');
-      }
-      if (p.pendingCompletePurchase) {
-        _iap.completePurchase(p);
-      }
-    }
-  }
-
-  Future<void> _deliverProduct(PurchaseDetails p) async {
-    print(
-      'DEBUG: enter _deliverProduct with status=${p.status}, purchaseID=${p.purchaseID}',
-    );
-    print('DEBUG: currentUser uid=${FirebaseAuth.instance.currentUser?.uid}');
-    if (!mounted) return;
-    setState(() => _purchasePending = false);
-    // Use the receipt provided by the purchase details
-    String rawReceipt = p.verificationData.localVerificationData;
-    if (rawReceipt.isEmpty) {
-      print('DEBUG: No App Store receipt available after refresh');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Beleg nicht verfügbar.')));
-      return;
-    }
-    print('DEBUG: Receipt data fetched, length: ${rawReceipt.length}');
-    final payloadData = rawReceipt;
-    print(
-      'DEBUG: Sending base64 receipt payload, length: ${payloadData.length}',
-    );
-    final validation = await _verifyReceiptServer(payloadData);
-    if (validation['status'] != 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Belegprüfung fehlgeschlagen (Status ${validation['status']})',
-          ),
-        ),
-      );
-      return;
-    }
-    print('DEBUG: receipt validated successfully, parsing expiration');
-    // extract expiration date from latest_receipt_info
-    final infos = validation['latest_receipt_info'] as List<dynamic>;
-    final last = infos.last as Map<String, dynamic>;
-    final expMs =
-        int.tryParse(last['expires_date_ms'] as String? ?? '') ??
-        int.parse(last['expires_date'] as String);
-    print(
-      'DEBUG: extracted expMs=$expMs (${DateTime.fromMillisecondsSinceEpoch(expMs)})',
-    );
-    if (DateTime.fromMillisecondsSinceEpoch(expMs).isBefore(DateTime.now())) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Abo bereits abgelaufen.')));
-      return;
-    }
-    // mark receipt for storage
-    final receiptUsed = rawReceipt;
-    _confettiController.play();
-    // Determine which subscription model was purchased
-    String planType;
-    if (p.productID.contains('monthly')) {
-      planType = 'monthly';
-    } else if (p.productID.contains('yearly')) {
-      planType = 'yearly';
-    } else {
-      planType = p.productID;
-    }
-    print('💡 planType determined: $planType for productID ${p.productID}');
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        print('DEBUG: writing to Firestore for uid=$uid with plan=$planType');
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'plan': planType,
-          'receipt': receiptUsed,
-          'purchaseID': p.purchaseID,
-          'expiresAt': Timestamp.fromMillisecondsSinceEpoch(expMs),
-        }, SetOptions(merge: true));
-        print('✅ Firestore write successful for user $uid with plan $planType');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Abo in Database gespeichert!')),
-        );
-      }
-    } catch (e) {
-      print('Firestore write error: $e');
-    }
-    if (!mounted) return;
-    setState(() {});
-    if (!mounted) return;
-    // Rebuild the app's home route based on updated plan
-    Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil('/subscriptionGate', (route) => false);
-  }
-
-  bool _hasRestored = false;
-  Future<void> _deliverRestoredProduct(PurchaseDetails p) async {
-    if (!mounted || _hasRestored) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final data = doc.data();
-      final storedId = data?['purchaseID'] as String?;
-      // Only allow restore if this user previously purchased
-      if (storedId == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Kein bestehendes Abo für dieses Konto.'),
-            ),
-          );
-        }
-        return;
-      }
-      // No longer check for purchaseID match; proceed with restore if storedId exists
-    }
-    setState(() => _purchasePending = false);
-    _hasRestored = true;
-    await _deliverProduct(p);
-  }
-
-  void _handleError(IAPError error) {
-    setState(() => _purchasePending = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Kauf fehlgeschlagen: ${error.message}')),
-    );
-  }
-
-  /// Trigger restore purchases flow
-  void _restorePurchases() {
-    print('DEBUG: _restorePurchases called');
-    if (_restoreSub != null) return; // already restoring
-    _restoreRequested = true;
-    bool anyRestored = false;
-    _restoreSub = _iap.purchaseStream.listen((List<PurchaseDetails> purchases) {
-      print('DEBUG: onRestoreUpdated with purchases: $purchases');
-      for (var p in purchases) {
-        if (p.status == PurchaseStatus.restored && p.productID == _kProductID) {
-          anyRestored = true;
-          _deliverRestoredProduct(p);
-        }
-      }
-      // After first batch, cancel listener if explicit restore handled
-      _restoreSub?.cancel();
-      _restoreSub = null;
-      // Do not reset _restoreRequested here; let the timeout handle it
-    });
-    _iap.restorePurchases();
-    print('DEBUG: IAP.restorePurchases() invoked');
-    // After restore call, wait for any restores to arrive
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && _restoreRequested && !anyRestored) {
-        print('DEBUG: no purchases restored after delay');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Keine Käufe vorhanden.')));
-        _restoreRequested = false;
-        _restoreSub?.cancel();
-        _restoreSub = null;
-      }
-    });
-  }
-
-  void _buySubscription() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
-      return;
-    }
-    final matching = _products.where((p) => p.id == _kProductID);
-    final ProductDetails? prod = matching.isNotEmpty ? matching.first : null;
-    print(
-      'DEBUG: Attempting purchase for product: $_kProductID, found: ${prod != null}',
-    );
-    if (prod == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Produkt nicht verfügbar')));
-      return;
-    }
-    final param = PurchaseParam(productDetails: prod);
-    try {
-      _restoreRequested = false;
-      _purchaseRequested = true;
-      _iap.buyNonConsumable(purchaseParam: param);
-      print('DEBUG: buyNonConsumable called.');
-    } catch (e) {
-      print('DEBUG: buyNonConsumable threw: $e');
-    }
   }
 
   @override
@@ -379,8 +112,7 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
     _autoScrollTimer?.cancel();
     _sliderController.dispose();
     _confettiController.dispose();
-    _sub.cancel();
-    _restoreSub?.cancel();
+    _purchaseService.dispose();
     super.dispose();
   }
 
@@ -646,10 +378,7 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
                                       ? const CircularProgressIndicator()
                                       : ElevatedButton(
                                           onPressed: () {
-                                            print(
-                                              'DEBUG: Button tapped, initiating purchase',
-                                            );
-                                            _buySubscription();
+                                            _purchaseService.buyYearly();
                                           },
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: pink,
