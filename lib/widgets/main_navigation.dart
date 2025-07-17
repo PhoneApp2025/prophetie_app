@@ -31,6 +31,7 @@ import '../services/audio_transcription_service.dart';
 import '../services/traum_analysis_service.dart';
 import '../services/prophetie_analysis_service.dart';
 import '../services/recording_service.dart';
+import 'package:provider/provider.dart';
 
 
 class MainNavigation extends StatefulWidget {

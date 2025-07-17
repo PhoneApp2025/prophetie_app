@@ -85,9 +85,35 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
   }
 
   Future<void> _checkSubscription() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _checking = false;
+        _hasAccess = false;
+      });
+      return;
+    }
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final data = doc.data();
+    if (data != null && data.containsKey('plan')) {
+      final expiresAt = data['expiresAt'] as int?;
+      if (expiresAt != null &&
+          DateTime.fromMillisecondsSinceEpoch(expiresAt).isAfter(DateTime.now())) {
+        setState(() {
+          _checking = false;
+          _hasAccess = true;
+        });
+        return;
+      }
+    }
+
     setState(() {
       _checking = false;
-      _hasAccess = true; // Direkt Zugang gewähren ohne Kaufprüfung
+      _hasAccess = false;
     });
   }
 
