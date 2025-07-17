@@ -38,15 +38,23 @@ class TraumProvider with ChangeNotifier {
         .doc(userId)
         .collection('traeume')
         .doc(traum.id)
-        .set({
-      'text': traum.text,
-      'label': traum.label,
-      'isFavorit': traum.isFavorit,
-      'timestamp': traum.timestamp,
-      'audioUrl': traum.filePath,
-      'creatorName': traum.creatorName,
-    });
+        .set(traum.toJson());
     _traeume.insert(0, traum);
     notifyListeners();
+  }
+
+  void updateTraumStatus(String id, ProcessingStatus status) {
+    final index = _traeume.indexWhere((t) => t.id == id);
+    if (index != -1) {
+      _traeume[index] = _traeume[index].copyWith(status: status);
+      notifyListeners();
+      // Update status in Firestore as well
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('traeume')
+          .doc(id)
+          .update({'status': status.toString()});
+    }
   }
 }

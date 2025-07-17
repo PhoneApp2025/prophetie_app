@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum UploadStatus { idle, uploading, success, failed }
+enum ProcessingStatus { none, transcribing, analyzing, complete, failed }
 
 class Prophetie {
   final String id;
@@ -21,7 +21,7 @@ class Prophetie {
   final String? relatedTopics;
   final String? transcript;
   final String? driveAudioId;
-  final UploadStatus uploadStatus;
+  final ProcessingStatus status;
   final String? lastErrorMessage;
   final List<String>? matchingTopics;
   bool? isTopNews;
@@ -46,7 +46,7 @@ class Prophetie {
     this.relatedTopics,
     this.transcript,
     this.driveAudioId,
-    this.uploadStatus = UploadStatus.idle,
+    this.status = ProcessingStatus.none,
     this.lastErrorMessage,
     this.matchingTopics,
     this.isTopNews,
@@ -72,7 +72,7 @@ class Prophetie {
     String? relatedTopics,
     String? transcript,
     String? driveAudioId,
-    UploadStatus? uploadStatus,
+    ProcessingStatus? status,
     String? lastErrorMessage,
     List<String>? matchingTopics,
     bool? isTopNews,
@@ -98,7 +98,7 @@ class Prophetie {
       relatedTopics: relatedTopics ?? this.relatedTopics,
       transcript: transcript ?? this.transcript,
       driveAudioId: driveAudioId ?? this.driveAudioId,
-      uploadStatus: uploadStatus ?? this.uploadStatus,
+      status: status ?? this.status,
       lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
       matchingTopics: matchingTopics ?? this.matchingTopics,
       isTopNews: isTopNews ?? this.isTopNews,
@@ -126,7 +126,7 @@ class Prophetie {
       'relatedTopics': relatedTopics,
       'transcript': transcript,
       'driveAudioId': driveAudioId,
-      'uploadStatus': uploadStatus.toString(),
+      'status': status.toString(),
       'lastErrorMessage': lastErrorMessage,
       'matchingTopics': matchingTopics ?? [],
       'isTopNews': this.isTopNews ?? false,
@@ -147,17 +147,18 @@ class Prophetie {
       return value.toString();
     }
 
-    UploadStatus parseUploadStatus(String? status) {
+    ProcessingStatus parseProcessingStatus(String? status) {
       switch (status) {
-        case 'UploadStatus.uploading':
-          return UploadStatus.uploading;
-        case 'UploadStatus.success':
-          return UploadStatus.success;
-        case 'UploadStatus.failed':
-          return UploadStatus.failed;
-        case 'UploadStatus.idle':
+        case 'ProcessingStatus.transcribing':
+          return ProcessingStatus.transcribing;
+        case 'ProcessingStatus.analyzing':
+          return ProcessingStatus.analyzing;
+        case 'ProcessingStatus.complete':
+          return ProcessingStatus.complete;
+        case 'ProcessingStatus.failed':
+          return ProcessingStatus.failed;
         default:
-          return UploadStatus.idle;
+          return ProcessingStatus.none;
       }
     }
 
@@ -180,7 +181,7 @@ class Prophetie {
       relatedTopics: parseField(json['relatedTopics']),
       transcript: parseField(json['transcript']),
       driveAudioId: json['driveAudioId'],
-      uploadStatus: parseUploadStatus(json['uploadStatus']),
+      status: parseProcessingStatus(json['status']),
       lastErrorMessage: json['lastErrorMessage'],
       matchingTopics: (json['matchingTopics'] as List<dynamic>?)
           ?.map((item) => item.toString())

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:prophetie_app/models/prophetie.dart';
 
 class Traum {
   final String id;
@@ -23,6 +24,7 @@ class Traum {
   final bool? isTopNews;
   final bool? isAnalyzed;
   List<String>? matchingTopics;
+  final ProcessingStatus status;
 
   Traum({
     required this.id,
@@ -47,6 +49,7 @@ class Traum {
     this.isTopNews,
     this.isAnalyzed,
     this.matchingTopics,
+    this.status = ProcessingStatus.none,
   });
 
   Traum copyWith({
@@ -72,6 +75,7 @@ class Traum {
     bool? isTopNews,
     bool? isAnalyzed,
     List<String>? matchingTopics,
+    ProcessingStatus? status,
   }) {
     return Traum(
       id: id ?? this.id,
@@ -97,6 +101,7 @@ class Traum {
       isTopNews: isTopNews ?? this.isTopNews,
       isAnalyzed: isAnalyzed ?? this.isAnalyzed,
       matchingTopics: matchingTopics ?? this.matchingTopics,
+      status: status ?? this.status,
     );
   }
 
@@ -138,6 +143,10 @@ class Traum {
       matchingTopics: json['matchingTopics'] != null
           ? List<String>.from(json['matchingTopics'])
           : null,
+      status: ProcessingStatus.values.firstWhere(
+        (e) => e.toString() == json['status'],
+        orElse: () => ProcessingStatus.none,
+      ),
     );
   }
 
@@ -165,6 +174,7 @@ class Traum {
       'isTopNews': isTopNews ?? false,
       'isAnalyzed': isAnalyzed ?? false,
       'matchingTopics': matchingTopics,
+      'status': status.toString(),
     };
   }
 }
