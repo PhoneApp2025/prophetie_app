@@ -19,6 +19,8 @@ import 'package:prophetie_app/screens/phone_plus_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:prophetie_app/providers/prophetie_provider.dart';
 import 'package:prophetie_app/providers/traum_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'widgets/main_navigation.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -26,6 +28,7 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await dotenv.load(fileName: ".env");
 
   await initializeDateFormatting('de_DE', null);
@@ -102,7 +105,9 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     if (data != null && data.containsKey('plan')) {
       final expiresAt = data['expiresAt'] as int?;
       if (expiresAt != null &&
-          DateTime.fromMillisecondsSinceEpoch(expiresAt).isAfter(DateTime.now())) {
+          DateTime.fromMillisecondsSinceEpoch(
+            expiresAt,
+          ).isAfter(DateTime.now())) {
         setState(() {
           _checking = false;
           _hasAccess = true;
@@ -122,7 +127,8 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     const sandboxUrl = 'https://sandbox.itunes.apple.com/verifyReceipt';
     final payload = json.encode({
       'receipt-data': receiptData,
-      'password': dotenv.env['SHARED_SECRET'], // or import your shared secret constant
+      'password':
+          dotenv.env['SHARED_SECRET'], // or import your shared secret constant
     });
     // First try production
     final prodRes = await http.post(
@@ -399,4 +405,5 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
 
