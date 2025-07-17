@@ -88,116 +88,68 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     required String label,
     String? creatorName,
   }) async {
-    // 1) Add to local list and mark uploading
+    final traumProvider = Provider.of<TraumProvider>(context, listen: false);
     final newTraum = Traum(
       id: id,
-      text: "Wird analysiert...",
+      text: transcriptText ?? "Wird transkribiert...",
       label: label,
       isFavorit: false,
       timestamp: DateTime.now(),
       creatorName: creatorName,
+      status: transcriptText == null
+          ? ProcessingStatus.transcribing
+          : ProcessingStatus.analyzing,
     );
-    setState(() {
-      traeume.insert(0, newTraum);
-      uploadingTraumIds.add(id);
-    });
+    traumProvider.addTraum(newTraum);
 
-    // 2) Initial save to Firestore
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('traeume')
-        .doc(id)
-        .set({
-          'id': id,
-          'text': transcriptText ?? "",
-          'creatorName':
-              creatorName ??
-              FirebaseAuth.instance.currentUser!.displayName ??
-              '',
-          'transcript': transcriptText ?? "",
-          'isAnalyzed': false,
-          'timestamp': FieldValue.serverTimestamp(),
-          'label': label,
-        });
+    try {
+      if (localFilePath != null) {
+        // Audio-Workflow
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child(
+                'users/${FirebaseAuth.instance.currentUser!.uid}/traeume/$id');
+        await storageRef.putFile(File(localFilePath));
+        final downloadUrl = await storageRef.getDownloadURL();
 
-    // 3) Trigger analysis
-    if (localFilePath != null) {
-      // Upload der Audio-Datei in Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('users')
-          .child(uid)
-          .child('traeume')
-          .child(id);
-      await storageRef.putFile(File(localFilePath));
-      final downloadUrl = await storageRef.getDownloadURL();
-      // Speichere die Storage-URL in Firestore, Merge um bestehende Felder zu behalten
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('traeume')
-          .doc(id)
-          .set({'audioUrl': downloadUrl}, SetOptions(merge: true));
-      setState(() {
-        final index = traeume.indexWhere((t) => t.id == id);
-        if (index != -1) {
-          traeume[index] = traeume[index].copyWith(
-            title: 'Wird transkribiert...',
-          );
-        }
-      });
-      await transcribeAndPrepareAnalysis(
-        filePath: localFilePath,
-        docId: id,
-        collectionName: 'traeume',
-        isRemoteUrl: false,
-        onComplete: () async {
-          // Nach der Transkription: Hole das Transkript und starte Qwen-Analyse
-          final snapshot = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(FirebaseAuth.instance.currentUser!.uid)
-              .collection('traeume')
-              .doc(id)
-              .get();
-          final transcriptText = snapshot.data()?['transcript'] as String?;
-          if (transcriptText != null && transcriptText.isNotEmpty) {
-            setState(() {
-              final index = traeume.indexWhere((t) => t.id == id);
-              if (index != -1) {
-                traeume[index] = traeume[index].copyWith(
-                  title: 'Wird analysiert..',
-                );
-              }
-            });
-            await analyzeAndSaveTraum(
-              transcript: transcriptText,
-              firestoreDocId: id,
-              onReload: loadTraeumeFromFirestore,
-            );
-          }
-        },
-      );
-      // Persist the new Traum list to Firestore (optional, falls benötigt)
-      await saveTraeume();
-    } else if (transcriptText != null) {
-      await analyzeAndSaveTraum(
-        transcript: transcriptText,
-        firestoreDocId: id,
-        onReload: loadTraeumeFromFirestore,
-      );
-      // Refresh list immediately after text analysis to remove spinner
-      await loadTraeumeFromFirestore();
-      setState(() {});
-      // Persist the new Traum list to Firestore
-      await saveTraeume();
+        await transcribeAndPrepareAnalysis(
+          filePath: downloadUrl,
+          docId: id,
+          collectionName: 'traeume',
+          isRemoteUrl: true,
+          onComplete: () async {
+            final snapshot = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser!.uid)
+                .collection('traeume')
+                .doc(id)
+                .get();
+            final transcript = snapshot.data()?['transcript'] as String?;
+            if (transcript != null && transcript.isNotEmpty) {
+              traumProvider.updateTraumStatus(id, ProcessingStatus.analyzing);
+              await analyzeAndSaveTraum(
+                transcript: transcript,
+                firestoreDocId: id,
+                onReload: traumProvider.loadTraeume,
+              );
+              traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
+            } else {
+              traumProvider.updateTraumStatus(id, ProcessingStatus.failed);
+            }
+          },
+        );
+      } else if (transcriptText != null) {
+        // Text-Workflow
+        await analyzeAndSaveTraum(
+          transcript: transcriptText,
+          firestoreDocId: id,
+          onReload: traumProvider.loadTraeume,
+        );
+        traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
+      }
+    } catch (e) {
+      traumProvider.updateTraumStatus(id, ProcessingStatus.failed);
     }
-
-    // 5) Remove uploading flag
-    setState(() {
-      uploadingTraumIds.remove(id);
-    });
   }
 
   Future<void> _checkInternetAndLoadData() async {
@@ -945,211 +897,16 @@ class TraeumeScreenState extends State<TraeumeScreen> {
   // Entfernt: _showAddLabelDialog und buildDriveDownloadLink
 
   Widget _buildCard(Traum t) {
-    final isUploading = uploadingTraumIds.contains(t.id);
-    // Bestimme, ob analysiert, über das Feld t.isAnalyzed
-    final bool isAnalyzed = t.isAnalyzed ?? false;
-
-    // If not analyzed, show disabled card with spinner and "Wird analysiert..."
-    if (!isAnalyzed) {
-      // Analysis in progress?
-      if (uploadingTraumIds.contains(t.id)) {
-        // Uploading or analyzing: show spinner and disable interaction
-        return AbsorbPointer(
-          absorbing: true,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            ),
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "${t.timestamp.day}. ${_monthName(t.timestamp.month)} ${t.timestamp.year}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "Wird analysiert...",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black54,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 208, 208, 208),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-            ),
-          ),
-        );
-      } else {
-        // Analysis failed: show error with retry button and allow dismissal
-        return Dismissible(
-          key: ValueKey(t.id),
-          background: Container(),
-          secondaryBackground: Container(
-            color: Colors.transparent,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(8),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-          ),
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              final result = await showModalBottomSheet<bool>(
-                context: context,
-                backgroundColor: Colors.transparent,
-                builder: (ctx) => Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).canvasColor,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Wrap(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.delete, color: Colors.red),
-                          title: const Text(
-                            'Löschen',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          onTap: () => Navigator.of(ctx).pop(true),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.close),
-                          title: const Text('Abbrechen'),
-                          onTap: () => Navigator.of(ctx).pop(false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-              return result ?? false;
-            }
-            return false;
-          },
-          onDismissed: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              final userId = FirebaseAuth.instance.currentUser?.uid;
-              final traumId = t.id;
-              if (userId != null && traumId != null) {
-                try {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(userId)
-                      .collection('traeume')
-                      .doc(traumId)
-                      .delete();
-                } catch (e) {
-                  debugPrint('Fehler beim Löschen des Traums: $e');
-                }
-              }
-              setState(() {
-                traeume.removeWhere((element) => element.id == t.id);
-              });
-              await saveTraeume();
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            ),
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    "Analyse fehlgeschlagen",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.blue),
-                  onPressed: () {
-                    setState(() {
-                      uploadingTraumIds.add(t.id!);
-                    });
-                    retryFailedUpload(t.id!);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+    switch (t.status) {
+      case ProcessingStatus.transcribing:
+        return _buildStatusCard("Transkribiere...", t);
+      case ProcessingStatus.analyzing:
+        return _buildStatusCard("Analysiere...", t);
+      case ProcessingStatus.failed:
+        return _buildStatusCard("Fehlgeschlagen", t, isError: true);
+      default:
+        // Render the normal card for complete or none status
+        break;
     }
 
     // If analyzed, show normal interactive card with overlay chip at top-right

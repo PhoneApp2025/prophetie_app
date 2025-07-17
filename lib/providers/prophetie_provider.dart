@@ -38,15 +38,23 @@ class ProphetieProvider with ChangeNotifier {
         .doc(userId)
         .collection('prophetien')
         .doc(prophetie.id)
-        .set({
-      'text': prophetie.text,
-      'label': prophetie.label,
-      'isFavorit': prophetie.isFavorit,
-      'timestamp': prophetie.timestamp,
-      'audioUrl': prophetie.filePath,
-      'creatorName': prophetie.creatorName,
-    });
+        .set(prophetie.toJson());
     _prophetien.insert(0, prophetie);
     notifyListeners();
+  }
+
+  void updateProphetieStatus(String id, ProcessingStatus status) {
+    final index = _prophetien.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      _prophetien[index] = _prophetien[index].copyWith(status: status);
+      notifyListeners();
+      // Update status in Firestore as well
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('prophetien')
+          .doc(id)
+          .update({'status': status.toString()});
+    }
   }
 }

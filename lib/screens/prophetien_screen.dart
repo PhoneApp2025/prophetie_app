@@ -88,125 +88,72 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     required String label,
     String? creatorName,
   }) async {
-    // 1) Add to local list and mark uploading
+    final prophetieProvider =
+        Provider.of<ProphetieProvider>(context, listen: false);
     final newProphetie = Prophetie(
       id: id,
-      text: "Wird analysiert...",
+      text: transcriptText ?? "Wird transkribiert...",
       label: label,
       isFavorit: false,
       timestamp: DateTime.now(),
       creatorName: creatorName,
+      status: transcriptText == null
+          ? ProcessingStatus.transcribing
+          : ProcessingStatus.analyzing,
     );
-    setState(() {
-      prophetien.insert(0, newProphetie);
-      uploadingProphetieIds.add(id);
-    });
+    prophetieProvider.addProphetie(newProphetie);
 
-    // 2) Initial save to Firestore
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('prophetien')
-        .doc(id)
-        .set({
-          'id': id,
-          'text': transcriptText ?? "",
-          'creatorName':
-              creatorName ??
-              FirebaseAuth.instance.currentUser!.displayName ??
-              '',
-          'transcript': transcriptText ?? "",
-          'isAnalyzed': false,
-          'timestamp': FieldValue.serverTimestamp(),
-          'label': label,
-        });
+    try {
+      if (localFilePath != null) {
+        // Audio-Workflow
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child(
+                'users/${FirebaseAuth.instance.currentUser!.uid}/prophetien/$id');
+        await storageRef.putFile(File(localFilePath));
+        final downloadUrl = await storageRef.getDownloadURL();
 
-    // 3) Trigger analysis
-    if (localFilePath != null) {
-      // Upload der Audio-Datei in Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('users')
-          .child(uid)
-          .child('prophetien')
-          .child(id);
-      await storageRef.putFile(File(localFilePath));
-      final downloadUrl = await storageRef.getDownloadURL();
-      // Speichere die Storage-URL in Firestore (merge=true)
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('prophetien')
-          .doc(id)
-          .set({'audioUrl': downloadUrl}, SetOptions(merge: true));
-      // Set title to "Wird transkribiert..." for visual feedback
-      setState(() {
-        final index = prophetien.indexWhere((p) => p.id == id);
-        if (index != -1) {
-          prophetien[index] = prophetien[index].copyWith(
-            title: 'Wird transkribiert...',
-          );
-        }
-      });
-      await transcribeAndPrepareAnalysis(
-        filePath: downloadUrl,
-        docId: id,
-        collectionName: 'prophetien',
-        isRemoteUrl: true,
-        onComplete: () async {
-          final snapshot = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(FirebaseAuth.instance.currentUser!.uid)
-              .collection('prophetien')
-              .doc(id)
-              .get();
-          final transcriptText = snapshot.data()?['transcript'] as String?;
-          if (transcriptText != null && transcriptText.isNotEmpty) {
-            // Visual loading state: "Wird analysiert (Qwen)..."
-            setState(() {
-              final index = prophetien.indexWhere((p) => p.id == id);
-              if (index != -1) {
-                prophetien[index] = prophetien[index].copyWith(
-                  title: 'Wird analysiert...',
-                );
-              }
-            });
-            await analyzeAndSaveProphetie(
-              transcript: transcriptText,
-              firestoreDocId: id,
-              onReload: loadProphetienFromFirestore,
-            );
-          }
-        },
-      );
-    } else if (transcriptText != null) {
-      // Text-Prophetie: Vor Analyse UI-Feedback anzeigen
-      setState(() {
-        final index = prophetien.indexWhere((p) => p.id == id);
-        if (index != -1) {
-          prophetien[index] = prophetien[index].copyWith(
-            title: 'Wird analysiert...',
-          );
-        }
-      });
-      await analyzeAndSaveProphetie(
-        transcript: transcriptText,
-        firestoreDocId: id,
-        onReload: loadProphetienFromFirestore,
-      );
+        await transcribeAndPrepareAnalysis(
+          filePath: downloadUrl,
+          docId: id,
+          collectionName: 'prophetien',
+          isRemoteUrl: true,
+          onComplete: () async {
+            final snapshot = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser!.uid)
+                .collection('prophetien')
+                .doc(id)
+                .get();
+            final transcript = snapshot.data()?['transcript'] as String?;
+            if (transcript != null && transcript.isNotEmpty) {
+              prophetieProvider.updateProphetieStatus(
+                  id, ProcessingStatus.analyzing);
+              await analyzeAndSaveProphetie(
+                transcript: transcript,
+                firestoreDocId: id,
+                onReload: prophetieProvider.loadProphetien,
+              );
+              prophetieProvider.updateProphetieStatus(
+                  id, ProcessingStatus.complete);
+            } else {
+              prophetieProvider.updateProphetieStatus(
+                  id, ProcessingStatus.failed);
+            }
+          },
+        );
+      } else if (transcriptText != null) {
+        // Text-Workflow
+        await analyzeAndSaveProphetie(
+          transcript: transcriptText,
+          firestoreDocId: id,
+          onReload: prophetieProvider.loadProphetien,
+        );
+        prophetieProvider.updateProphetieStatus(id, ProcessingStatus.complete);
+      }
+    } catch (e) {
+      prophetieProvider.updateProphetieStatus(id, ProcessingStatus.failed);
     }
-
-    // 4) Final save (in case any fields updated)
-    await saveProphetien();
-
-    // 5) Remove uploading flag
-    setState(() {
-      uploadingProphetieIds.remove(id);
-    });
-    // Refresh list to include new Prophetie from Firestore
-    await loadProphetienFromFirestore();
-    setState(() {});
   }
 
   Future<void> _checkInternetAndLoadData() async {
@@ -934,254 +881,16 @@ class ProphetienScreenState extends State<ProphetienScreen> {
   // Entfernt: _showAddLabelDialog und buildDriveDownloadLink
 
   Widget _buildCard(Prophetie p) {
-    final isUploading = uploadingProphetieIds.contains(p.id);
-    // Bestimme isAnalyzed-Status direkt aus dem Feld
-    final bool isAnalyzed = p.isAnalyzed ?? false;
-
-    // If not analyzed, show disabled card with spinner and "Wird analysiert..."
-    if (!isAnalyzed) {
-      // Analysis in progress?
-      if (uploadingProphetieIds.contains(p.id)) {
-        // Uploading or analyzing: show spinner and disable interaction
-        return AbsorbPointer(
-          absorbing: true,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            ),
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "${p.timestamp.day}. ${_monthName(p.timestamp.month)} ${p.timestamp.year}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "Wird analysiert...",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black54,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 208, 208, 208),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-            ),
-          ),
-        );
-      } else {
-        // Analysis failed: show error with retry button and allow dismissal
-        return Dismissible(
-          key: ValueKey(p.id),
-          background: Container(),
-          secondaryBackground: Container(
-            color: Colors.transparent,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(8),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-          ),
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              final result = await showModalBottomSheet<bool>(
-                context: context,
-                backgroundColor: Colors.transparent,
-                builder: (ctx) => Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).canvasColor,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Wrap(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.delete, color: Colors.red),
-                          title: const Text(
-                            'Löschen',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          onTap: () => Navigator.of(ctx).pop(true),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.close),
-                          title: const Text('Abbrechen'),
-                          onTap: () => Navigator.of(ctx).pop(false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-              return result ?? false;
-            }
-            return false;
-          },
-          onDismissed: (direction) async {
-            if (direction == DismissDirection.endToStart) {
-              final userId = FirebaseAuth.instance.currentUser?.uid;
-              final prophetieId = p.id;
-              if (userId != null && prophetieId != null) {
-                try {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(userId)
-                      .collection('prophetien')
-                      .doc(prophetieId)
-                      .delete();
-                } catch (e) {
-                  debugPrint('Fehler beim Löschen der Prophetie: $e');
-                }
-              }
-              setState(() {
-                prophetien.removeWhere((element) => element.id == p.id);
-              });
-              await saveProphetien();
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-            ),
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    "Analyse fehlgeschlagen",
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: Color.fromARGB(255, 255, 2, 82),
-                  ),
-                  onPressed: () async {
-                    setState(() {
-                      uploadingProphetieIds.add(p.id);
-                    });
-                    final uid = FirebaseAuth.instance.currentUser!.uid;
-                    final docRef = FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(uid)
-                        .collection('prophetien')
-                        .doc(p.id);
-                    final doc = await docRef.get();
-                    final dataMap = doc.data() ?? {};
-                    final transcriptText = (dataMap['transcript'] as String?)
-                        ?.trim();
-                    if (transcriptText != null && transcriptText.isNotEmpty) {
-                      await analyzeAndSaveProphetie(
-                        transcript: transcriptText,
-                        firestoreDocId: p.id,
-                        onReload: loadProphetienFromFirestore,
-                      );
-                    } else {
-                      final audioUrl = dataMap['audioUrl'] as String?;
-                      final filePath =
-                          audioUrl ?? dataMap['filePath'] as String?;
-                      if (filePath != null && filePath.isNotEmpty) {
-                        await transcribeAndPrepareAnalysis(
-                          filePath: filePath,
-                          docId: p.id,
-                          collectionName: 'prophetien',
-                          isRemoteUrl: audioUrl != null,
-                          onComplete: loadProphetienFromFirestore,
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Kein Transkript oder Audio vorhanden.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                    setState(() {
-                      uploadingProphetieIds.remove(p.id);
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+    switch (p.status) {
+      case ProcessingStatus.transcribing:
+        return _buildStatusCard("Transkribiere...", p);
+      case ProcessingStatus.analyzing:
+        return _buildStatusCard("Analysiere...", p);
+      case ProcessingStatus.failed:
+        return _buildStatusCard("Fehlgeschlagen", p, isError: true);
+      default:
+        // Render the normal card for complete or none status
+        break;
     }
 
     // If analyzed, show normal interactive card with overlay chip at top-right
