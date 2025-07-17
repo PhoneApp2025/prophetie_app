@@ -239,7 +239,11 @@ class _MyAppState extends State<MyApp> {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('de', 'DE')],
-          routes: {'/authGate': (context) => const AuthGate()},
+          routes: {
+            '/authGate': (context) => const AuthGate(),
+            '/subscriptionGate': (context) =>
+                const SubscriptionGate(child: MainNavigation()),
+          },
           theme: ThemeData(
             fontFamily: 'Poppins',
             useMaterial3: true,
