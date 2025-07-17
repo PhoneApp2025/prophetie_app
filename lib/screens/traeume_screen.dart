@@ -28,6 +28,8 @@ import 'package:just_audio/just_audio.dart';
 import '../screens/phone_plus_screen.dart';
 import '../services/traum_analysis_service.dart';
 import '../services/audio_transcription_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/traum_provider.dart';
 
 Map<String, dynamic>? tryParseJson(String input) {
   try {
@@ -75,6 +77,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     });
 
     _checkInternetAndLoadData();
+    Provider.of<TraumProvider>(context, listen: false).loadTraeume();
   }
 
   /// Shared logic for creating and analyzing a new Prophetie.
@@ -693,9 +696,9 @@ class TraeumeScreenState extends State<TraeumeScreen> {
               ),
               const SizedBox(height: 6),
               Expanded(
-                child: Builder(
-                  builder: (context) {
-                    final all = traeume;
+                child: Consumer<TraumProvider>(
+                  builder: (context, traumProvider, child) {
+                    final all = traumProvider.traeume;
                     // Sort prophetien by createdAt (timestamp) descending before filtering
                     all.sort((a, b) => b.timestamp.compareTo(a.timestamp));
                     final filtered = selectedFilter == 'Alle'
@@ -729,7 +732,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                       slivers: [
                         CupertinoSliverRefreshControl(
                           onRefresh: () async {
-                            await loadTraeumeFromFirestore();
+                            await traumProvider.loadTraeume();
                             await HapticFeedback.mediumImpact();
                             setState(() {});
                           },

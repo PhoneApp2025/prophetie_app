@@ -3,11 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../widgets/main_navigation.dart';
-import '../screens/profil_screen.dart';
 import 'login_screen.dart';
-import '../services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'phone_plus_screen.dart';
 
 final googleSignIn = GoogleSignIn(
   scopes: [
@@ -51,18 +48,6 @@ class _AuthGateState extends State<AuthGate> {
                 body: Center(child: CircularProgressIndicator()),
               );
             } else if (snapshot.hasData) {
-              final user = FirebaseAuth.instance.currentUser!;
-              // Standard-Labels initialisieren
-              final labelsRef = FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .collection('labels');
-              labelsRef.get().then((snap) {
-                if (snap.docs.isEmpty) {
-                  labelsRef.doc('Archiv').set({'label': 'Archiv'});
-                  labelsRef.doc('Prüfen').set({'label': 'Prüfen'});
-                }
-              });
               return const MainNavigation();
             } else {
               return const LoginScreen();
@@ -71,16 +56,5 @@ class _AuthGateState extends State<AuthGate> {
         );
       },
     );
-  }
-}
-
-Future<void> reAuthenticateWithGoogle() async {
-  try {
-    await googleSignIn.disconnect();
-    await googleSignIn.signOut();
-    final account = await googleSignIn.signIn();
-    print("🔁 Reauthentifiziert als: ${account?.email}");
-  } catch (e) {
-    print("⚠️ Fehler bei Reauthentifizierung: $e");
   }
 }

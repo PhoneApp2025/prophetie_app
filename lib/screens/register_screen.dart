@@ -7,6 +7,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:prophetie_app/screens/auth_gate.dart';
+import 'package:prophetie_app/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -74,23 +75,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
-  Future<void> _ensureUserDocumentInitialized(User user) async {
-    final userDoc = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid);
-    final snapshot = await userDoc.get();
-    if (!snapshot.exists) {
-      await userDoc.set({
-        'createdAt': FieldValue.serverTimestamp(),
-        'labels': ['Archiv', 'Prüfen'],
-      });
-    } else if (!(snapshot.data()?['labels'] is List)) {
-      await userDoc.update({
-        'labels': ['Archiv', 'Prüfen'],
-      });
-    }
-  }
-
   Future<void> _signInWithGoogle() async {
     if (!_accepted) return;
     HapticFeedback.selectionClick();
@@ -113,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       final user = userCredential.user;
       if (user != null) {
-        await _ensureUserDocumentInitialized(user);
+        await AuthService().handlePostLogin();
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/authGate');
       }
@@ -153,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       final user = userCredential.user;
       if (user != null) {
-        await _ensureUserDocumentInitialized(user);
+        await AuthService().handlePostLogin();
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/authGate');
       }

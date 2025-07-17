@@ -49,4 +49,16 @@ class AuthService {
     await handlePostLogin(); // Standard-Labels und Setup
     return credential;
   }
+
+  Future<UserCredential> createUserWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    await handlePostLogin(); // Standard-Labels und Setup
+    return credential;
+  }
 }

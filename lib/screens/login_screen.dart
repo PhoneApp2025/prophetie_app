@@ -470,8 +470,6 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      await loadProphetien();
-      await loadTraeume();
       if (mounted) {
         Navigator.of(
           context,
@@ -528,9 +526,7 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
       await FirebaseAuth.instance.signInWithCredential(credential);
-      await _ensureUserDocumentInitialized();
-      await loadProphetien();
-      await loadTraeume();
+      await AuthService().handlePostLogin();
       if (mounted) {
         Navigator.of(
           context,
@@ -577,9 +573,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await FirebaseAuth.instance.signInWithCredential(oauthCredential);
-      await _ensureUserDocumentInitialized();
-      await loadProphetien();
-      await loadTraeume();
+      await AuthService().handlePostLogin();
       if (mounted) {
         Navigator.of(
           context,
@@ -609,25 +603,6 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  Future<void> _ensureUserDocumentInitialized() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final userDoc = FirebaseFirestore.instance.collection('users').doc(uid);
-    final snapshot = await userDoc.get();
-
-    if (!snapshot.exists) {
-      await userDoc.set({
-        'createdAt': FieldValue.serverTimestamp(),
-        'labels': ['Archiv', 'Prüfen'],
-      });
-    } else if (!(snapshot.data()?['labels'] is List)) {
-      await userDoc.update({
-        'labels': ['Archiv', 'Prüfen'],
-      });
     }
   }
 

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import '../secrets.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../data/globals.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -31,60 +31,6 @@ import '../services/audio_transcription_service.dart';
 import '../services/traum_analysis_service.dart';
 import '../services/prophetie_analysis_service.dart';
 
-final List<Prophetie> prophetien = [];
-final List<Traum> traeume = [];
-
-Future<void> loadProphetien() async {
-  final userId = FirebaseAuth.instance.currentUser!.uid;
-  final snapshot = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('prophetien')
-      .orderBy('timestamp', descending: true)
-      .get();
-  prophetien
-    ..clear()
-    ..addAll(
-      snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Prophetie(
-          id: doc.id,
-          text: data['text'] as String? ?? '',
-          label: data['label'] as String? ?? 'NEU',
-          isFavorit: data['isFavorit'] as bool? ?? false,
-          timestamp: (data['timestamp'] as Timestamp).toDate(),
-          filePath: data['audioUrl'] as String?,
-          creatorName: data['creatorName'] as String?,
-        );
-      }),
-    );
-}
-
-Future<void> loadTraeume() async {
-  final userId = FirebaseAuth.instance.currentUser!.uid;
-  final snapshot = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('traeume')
-      .orderBy('timestamp', descending: true)
-      .get();
-  traeume
-    ..clear()
-    ..addAll(
-      snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Traum(
-          id: doc.id,
-          text: data['text'] as String? ?? '',
-          label: data['label'] as String? ?? 'Empfangen',
-          isFavorit: data['isFavorit'] as bool? ?? false,
-          timestamp: (data['timestamp'] as Timestamp).toDate(),
-          filePath: data['audioUrl'] as String?,
-          creatorName: data['creatorName'] as String?,
-        );
-      }),
-    );
-}
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -318,13 +264,9 @@ class RecordingBottomSheet extends StatefulWidget {
 }
 
 class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
+  late final RecordingService _recordingService;
   bool isRecording = false;
-  late final RecorderController _recorderController;
-  String? _recordingPath;
-
-  Timer? _timer;
   Duration _elapsed = Duration.zero;
-
   String? selectedType;
   bool _isSaving = false;
 
@@ -353,68 +295,52 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
   @override
   void initState() {
     super.initState();
-    _recorderController = RecorderController();
+    _recordingService = RecordingService(onTimerTick: (duration) {
+      if (mounted) {
+        setState(() {
+          _elapsed = duration;
+        });
+      }
+    });
     _startRecording();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _recorderController.dispose();
+    _recordingService.dispose();
     super.dispose();
   }
 
   Future<void> _startRecording() async {
-    final hasPermission = await _recorderController.checkPermission();
-    if (!hasPermission) return;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final path =
-        '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    _recordingPath = path;
-
-    await _recorderController.record(path: path);
-    if (!mounted) return;
-    setState(() {
-      isRecording = true;
-    });
-
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
+    await _recordingService.startRecording();
+    if (mounted) {
       setState(() {
-        _elapsed += const Duration(milliseconds: 100);
+        isRecording = true;
       });
-    });
+    }
   }
 
   Future<void> _pauseRecording() async {
-    await _recorderController.pause();
-    _timer?.cancel();
-    if (!mounted) return;
-    setState(() {
-      isRecording = false;
-    });
+    await _recordingService.pauseRecording();
+    if (mounted) {
+      setState(() {
+        isRecording = false;
+      });
+    }
   }
 
   Future<void> _resumeRecording() async {
-    await _recorderController.record(path: _recordingPath!);
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
+    await _recordingService.resumeRecording();
+    if (mounted) {
       setState(() {
-        _elapsed += const Duration(milliseconds: 100);
+        isRecording = true;
       });
-    });
-    if (!mounted) return;
-    setState(() {
-      isRecording = true;
-    });
+    }
   }
 
   Future<void> _stopRecording() async {
-    _timer?.cancel();
-    await _recorderController.stop();
-
-    if (!mounted) return;
+    await _recordingService.stopRecording();
+    if (mounted) {
     setState(() {
       isRecording = false;
     });
@@ -525,7 +451,7 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
 
   Future<String> transcribeWithWhisper(String filePath) async {
     print('[WHISPER] Sende Datei: $filePath');
-    final apiKey = openaiApiKey;
+    final apiKey = dotenv.env['OPENAI_API_KEY'];
     final uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
 
     final request = http.MultipartRequest('POST', uri)
@@ -547,10 +473,10 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
   }
 
   Future<void> _saveProphetie(String type, {bool shareAfter = false}) async {
-    if (_isSaving || _recordingPath == null) return;
+    if (_isSaving || _recordingService.recordingPath == null) return;
     _isSaving = true;
     final id = const Uuid().v4();
-    final file = File(_recordingPath!);
+    final file = File(_recordingService.recordingPath!);
     // 1. Upload audio to Firebase Storage
     final userId = FirebaseAuth.instance.currentUser!.uid;
     final storageRef = FirebaseStorage.instance.ref().child(
@@ -609,7 +535,7 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
     }
 
     // 4. Analyse starten (nur bei "Für mich")
-    final localPath = _recordingPath;
+    final localPath = _recordingService.recordingPath;
     if (localPath != null) {
       Future.microtask(() async {
         final transcript = await transcribeAudioFile(localPath);
@@ -646,7 +572,7 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
           'Hey! Ich habe für dich eine ${type == 'traum' ? 'Traum' : 'Prophetie'} aufgenommen.\n\n$url';
 
       // Share audio file as attachment with text
-      final xfile = XFile(_recordingPath!);
+      final xfile = XFile(_recordingService.recordingPath!);
       await Share.shareXFiles([xfile], text: shareText);
       // Optionally delete audio file after sharing
       try {
@@ -676,20 +602,15 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
       if (!mounted) return;
       final navState = context.findAncestorStateOfType<_MainNavigationState>();
       if (type == 'prophetie') {
-        loadProphetien().then((_) {
-          navState?._prophetienScreenKey.currentState?.refreshProphetien();
-          navState?._onTabTapped(1);
-        });
+        Provider.of<ProphetieProvider>(context, listen: false).loadProphetien();
+        navState?._onTabTapped(1);
       } else {
-        loadTraeume().then((_) {
-          navState?._traeumeScreenKey.currentState?.refreshTraeume();
-          navState?._onTabTapped(3);
-        });
+        Provider.of<TraumProvider>(context, listen: false).loadTraeume();
+        navState?._onTabTapped(3);
       }
     });
     // 7. Clear temp path
     _isSaving = false;
-    _recordingPath = null;
   }
 
   @override
@@ -739,7 +660,7 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
             const SizedBox(height: 10, width: double.infinity),
             AudioWaveforms(
               size: Size(MediaQuery.of(context).size.width - 48, 100),
-              recorderController: _recorderController,
+              recorderController: _recordingService.recorderController,
               enableGesture: true,
               waveStyle: const WaveStyle(
                 waveColor: Color(0xFFFF2C55),
