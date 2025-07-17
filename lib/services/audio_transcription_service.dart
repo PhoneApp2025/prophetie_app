@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
-import '../secrets.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Transkribiert eine lokale Audiodatei mit OpenAI Whisper und gibt das Transkript zurück.
 Future<String?> transcribeAudioFile(String filePath) async {
@@ -12,7 +12,7 @@ Future<String?> transcribeAudioFile(String filePath) async {
   if (!file.existsSync()) return null;
   final uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
   final request = http.MultipartRequest('POST', uri)
-    ..headers['Authorization'] = 'Bearer $openaiApiKey'
+    ..headers['Authorization'] = 'Bearer ${dotenv.env['OPENAI_API_KEY']}'
     ..files.add(await http.MultipartFile.fromPath('file', file.path))
     ..fields['model'] = 'whisper-1';
   final streamedResponse = await request.send();

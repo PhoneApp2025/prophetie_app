@@ -30,6 +30,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../services/audio_transcription_service.dart';
 import '../services/traum_analysis_service.dart';
 import '../services/prophetie_analysis_service.dart';
+import '../services/recording_service.dart';
 
 
 class MainNavigation extends StatefulWidget {
@@ -78,7 +79,7 @@ class _MainNavigationState extends State<MainNavigation>
     }
     */
     if (shouldRefreshTraeume && index == 3) {
-      loadTraeume().then((_) {
+      Provider.of<TraumProvider>(context, listen: false).loadTraeume().then((_) {
         setState(() {
           shouldRefreshTraeume = false;
         });

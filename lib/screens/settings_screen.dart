@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:prophetie_app/main.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:prophetie_app/widgets/blurred_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

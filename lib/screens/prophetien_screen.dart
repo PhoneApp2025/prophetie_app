@@ -1,7 +1,7 @@
 import '../data/globals.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:io';
-import 'package:prophetie_app/secrets.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -1623,9 +1623,6 @@ String _monthName(int month) {
   ];
   return months[month - 1];
 }
-
-// Ermöglicht externen Zugriff auf Prophetien-Liste (z.B. aus MainNavigation)
-final List<Prophetie> prophetien = [];
 
 String? _safeToString(dynamic value) {
   if (value == null) return null;
