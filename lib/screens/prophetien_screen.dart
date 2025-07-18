@@ -30,6 +30,7 @@ import '../services/prophetie_analysis_service.dart';
 import '../services/audio_transcription_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/prophetie_provider.dart';
+import '../widgets/status_card.dart';
 
 Map<String, dynamic>? tryParseJson(String input) {
   try {
@@ -227,7 +228,6 @@ class ProphetienScreenState extends State<ProphetienScreen> {
           actionItems: d['actionItems'] as String?,
           relatedTopics: d['relatedTopics'] as String?,
           transcript: d['transcript'] as String?,
-          isAnalyzed: d['isAnalyzed'] as bool? ?? false,
         ),
       );
     }
@@ -885,14 +885,14 @@ class ProphetienScreenState extends State<ProphetienScreen> {
   Widget _buildCard(Prophetie p) {
     if (p.status != ProcessingStatus.complete &&
         p.status != ProcessingStatus.none) {
-      return _buildStatusCard(
-        p.status == ProcessingStatus.transcribing
+      return StatusCard(
+        statusText: p.status == ProcessingStatus.transcribing
             ? "Transkribiere..."
             : p.status == ProcessingStatus.analyzing
                 ? "Analysiere..."
                 : "Fehlgeschlagen",
-        p,
         isError: p.status == ProcessingStatus.failed,
+        onRetry: () => retryFailedUpload(p.id),
       );
     }
 

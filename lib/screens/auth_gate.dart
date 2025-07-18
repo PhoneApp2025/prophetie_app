@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../widgets/main_navigation.dart';
 import 'login_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:prophetie_app/main.dart';
 
 final googleSignIn = GoogleSignIn(
   scopes: [

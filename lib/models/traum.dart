@@ -24,6 +24,7 @@ class Traum {
   final bool? isTopNews;
   List<String>? matchingTopics;
   final ProcessingStatus status;
+  final String? lastErrorMessage;
 
   Traum({
     required this.id,
@@ -48,6 +49,7 @@ class Traum {
     this.isTopNews,
     this.matchingTopics,
     this.status = ProcessingStatus.none,
+    this.lastErrorMessage,
   });
 
   Traum copyWith({
@@ -73,6 +75,7 @@ class Traum {
     bool? isTopNews,
     List<String>? matchingTopics,
     ProcessingStatus? status,
+    String? lastErrorMessage,
   }) {
     return Traum(
       id: id ?? this.id,
