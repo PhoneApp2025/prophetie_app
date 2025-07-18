@@ -41,9 +41,6 @@ class _ImportScreenState extends State<ImportScreen> {
     }
 
     try {
-      final audioUrl =
-          'https://firebasestorage.googleapis.com/v0/b/phone-8a758.appspot.com/o/${widget.type}-audio%2F${widget.id}.wav?alt=media';
-
       // Original in Firestore finden
       final snapshot = await FirebaseFirestore.instance
           .collectionGroup('gesendet')
@@ -55,6 +52,7 @@ class _ImportScreenState extends State<ImportScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Fehler: Original nicht gefunden.')),
         );
+        setState(() => _isLoading = false);
         return;
       }
 
@@ -62,10 +60,17 @@ class _ImportScreenState extends State<ImportScreen> {
       final originalData = originalDoc.data();
       final originalRef = originalDoc.reference;
 
+      final audioUrl = originalData['recordingUrl'] as String?;
+      if (audioUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fehler: Audio-URL nicht gefunden.')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
       // Beim aktuellen User speichern
-      final targetCollection = widget.type == 'traum'
-          ? 'traeume'
-          : 'prophetien';
+      final targetCollection = widget.type == 'traum' ? 'traeume' : 'prophetien';
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -73,30 +78,29 @@ class _ImportScreenState extends State<ImportScreen> {
           .collection(targetCollection)
           .doc(widget.id)
           .set({
-            ...originalData,
-            'audioUrl': audioUrl,
-            'label': 'Empfangen',
-            'timestamp': DateTime.now(),
-            'status': 'empfangen',
-          });
+        ...originalData,
+        'audioUrl': audioUrl,
+        'label': 'Empfangen',
+        'timestamp': DateTime.now(),
+        'status': 'empfangen',
+      });
+
+      // Den Sender über die Annahme informieren via Cloud Function
       final senderUid = originalRef.parent.parent?.id;
       if (senderUid != null) {
-        await SentRecordingService.instance.markAsAccepted(
-          senderUid,
-          widget.id!,
-        );
+        await SentRecordingService.instance.markAsAccepted(senderUid, widget.id!);
+      } else {
+        // Fallback oder Fehlerbehandlung, wenn senderUid nicht ermittelt werden kann
+        print("Sender-UID konnte nicht ermittelt werden.");
       }
 
-      // Original als angenommen markieren
-      try {
-        await originalRef.update({'status': 'angenommen'});
-      } catch (e) {
-        print("Konnte Original nicht aktualisieren: $e");
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Import erfolgreich')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Import erfolgreich')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import fehlgeschlagen: $e')),
+      );
     } finally {
       setState(() {
         _isLoading = false;
