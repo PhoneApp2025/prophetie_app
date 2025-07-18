@@ -30,6 +30,7 @@ import '../services/traum_analysis_service.dart';
 import '../services/audio_transcription_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/traum_provider.dart';
+import '../widgets/status_card.dart';
 
 Map<String, dynamic>? tryParseJson(String input) {
   try {
@@ -223,7 +224,6 @@ class TraeumeScreenState extends State<TraeumeScreen> {
           actionItems: d['actionItems'] as String?,
           relatedTopics: d['relatedTopics'] as String?,
           transcript: d['transcript'] as String?,
-          isAnalyzed: d['isAnalyzed'] as bool? ?? false,
         ),
       );
     }
@@ -901,14 +901,14 @@ class TraeumeScreenState extends State<TraeumeScreen> {
   Widget _buildCard(Traum t) {
     if (t.status != ProcessingStatus.complete &&
         t.status != ProcessingStatus.none) {
-      return _buildStatusCard(
-        t.status == ProcessingStatus.transcribing
+      return StatusCard(
+        statusText: t.status == ProcessingStatus.transcribing
             ? "Transkribiere..."
             : t.status == ProcessingStatus.analyzing
                 ? "Analysiere..."
                 : "Fehlgeschlagen",
-        t,
         isError: t.status == ProcessingStatus.failed,
+        onRetry: () => retryFailedUpload(t.id!),
       );
     }
 

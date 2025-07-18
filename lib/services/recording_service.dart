@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
 
 class RecordingService {
   late final RecorderController _recorderController;
