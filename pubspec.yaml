@@ -41,7 +41,7 @@ dependencies:
   firebase_storage: ^12.4.7
   google_sign_in: ^6.3.0
   audio_waveforms: ^1.0.4  
-  intl: ^0.18.1
+  intl: ^0.20.2
   cloud_functions: ^5.5.2
   confetti: ^0.6.0
   cached_network_image: ^3.2.3
