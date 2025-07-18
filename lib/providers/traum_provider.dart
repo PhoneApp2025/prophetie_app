@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/traum.dart';
-import '../models/prophetie.dart';
 
 class TraumProvider with ChangeNotifier {
   List<Traum> _traeume = [];
