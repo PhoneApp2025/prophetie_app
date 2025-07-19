@@ -29,7 +29,7 @@ class ProphetieProvider with ChangeNotifier {
       }
       return Prophetie(
         id: doc.id,
-        text: data['text'] as String? ?? '',
+        transcript: data['transkript'] as String? ?? '',
         title: data['title'] as String? ?? '',
         label: data['label'] as String? ?? 'NEU',
         isFavorit: data['isFavorit'] as bool? ?? false,
@@ -82,5 +82,28 @@ class ProphetieProvider with ChangeNotifier {
   void removeProphetie(String id) {
     _prophetien.removeWhere((p) => p.id == id);
     notifyListeners();
+  }
+
+  Future<void> handleNewProphetie({
+    required String id,
+    String? localFilePath,
+    String? transcriptText,
+    required String label,
+    String? creatorName,
+  }) async {
+    // This method should encapsulate the logic from the screen
+    // For now, we'll just add the prophetie and notify listeners
+    final newProphetie = Prophetie(
+      id: id,
+      transcript: transcriptText ?? "Wird transkribiert...",
+      label: label,
+      isFavorit: false,
+      timestamp: DateTime.now(),
+      creatorName: creatorName,
+      status: transcriptText == null
+          ? ProcessingStatus.transcribing
+          : ProcessingStatus.analyzing,
+    );
+    await addProphetie(newProphetie);
   }
 }
