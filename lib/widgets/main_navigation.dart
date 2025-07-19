@@ -512,28 +512,24 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
               'creatorName': FirebaseAuth.instance.currentUser?.displayName,
             });
       } else {
-        final navState = context
-            .findAncestorStateOfType<_MainNavigationState>();
         if (type == 'prophetie') {
-          await navState?._prophetienScreenKey.currentState?.handleNewProphetie(
-            id: id,
-            localFilePath: file.path,
-            label: 'NEU',
-          );
+          await Provider.of<ProphetieProvider>(
+            context,
+            listen: false,
+          ).handleNewProphetie(id: id, localFilePath: file.path, label: 'NEU');
         } else {
-          await navState?._traeumeScreenKey.currentState?.handleNewTraum(
-            id: id,
-            localFilePath: file.path,
-            label: 'NEU',
-          );
+          await Provider.of<TraumProvider>(
+            context,
+            listen: false,
+          ).handleNewTraum(id: id, localFilePath: file.path, label: 'NEU');
         }
       }
 
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
-        final navState = context
-            .findAncestorStateOfType<_MainNavigationState>();
-        navState?._onTabTapped(type == 'prophetie' ? 1 : 3);
+        context.findAncestorStateOfType<_MainNavigationState>()?._onTabTapped(
+          type == 'prophetie' ? 1 : 3,
+        );
       }
     } catch (e) {
       // Handle errors, e.g., show a snackbar
