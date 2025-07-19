@@ -115,12 +115,7 @@ class _MainNavigationState extends State<MainNavigation>
               duration: const Duration(milliseconds: 500),
               vsync: Navigator.of(context),
             ),
-            builder: (_) => RecordingBottomSheet(
-              onSaved: () {
-                _prophetienScreenKey.currentState?.refreshProphetien();
-                _traeumeScreenKey.currentState?.refreshTraeume();
-              },
-            ),
+            builder: (_) => const RecordingBottomSheet(),
           );
         } else {
           showModalBottomSheet(
@@ -260,9 +255,7 @@ class _MainNavigationState extends State<MainNavigation>
 }
 
 class RecordingBottomSheet extends StatefulWidget {
-  final VoidCallback? onSaved;
-
-  const RecordingBottomSheet({super.key, this.onSaved});
+  const RecordingBottomSheet({super.key});
 
   @override
   State<RecordingBottomSheet> createState() => _RecordingBottomSheetState();
@@ -425,9 +418,7 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           ElevatedButton(
-                            onPressed: () async {
-                              await _saveProphetie(selectedType!);
-                            },
+                            onPressed: () => _saveRecording(selectedType!),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
@@ -435,12 +426,8 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
                             child: const Text('Für mich'),
                           ),
                           ElevatedButton(
-                            onPressed: () async {
-                              await _saveProphetie(
-                                selectedType!,
-                                shareAfter: true,
-                              );
-                            },
+                            onPressed: () =>
+                                _saveRecording(selectedType!, shareAfter: true),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
@@ -483,145 +470,79 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
     }
   }
 
-  Future<void> _saveProphetie(String type, {bool shareAfter = false}) async {
+  Future<void> _saveRecording(String type, {bool shareAfter = false}) async {
     if (_isSaving || _recordingService.recordingPath == null) return;
-    _isSaving = true;
+    setState(() => _isSaving = true);
+
     final id = const Uuid().v4();
     final file = File(_recordingService.recordingPath!);
-    // 1. Upload audio to Firebase Storage
     final userId = FirebaseAuth.instance.currentUser!.uid;
-    final storageRef = FirebaseStorage.instance.ref().child(
-      'users/$userId/${type}-audio/$id.wav',
-    );
-    await storageRef.putFile(file);
-    final audioUrl = await storageRef.getDownloadURL();
-    // 2. Prepare Firestore data
-    final data = {
-      'text': null,
-      'label': 'NEU',
-      'isFavorit': false,
-      'timestamp': DateTime.now(),
-      'audioUrl': audioUrl,
-      'creatorName': FirebaseAuth.instance.currentUser?.displayName,
-      // 'isAnalyzed': false, // Entfernt: isAnalyzed wird beim Anlegen nicht mehr gesetzt
-    };
-    // 3. Save document (nur wenn für dich)
-    if (!shareAfter) {
-      final docRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection(type == 'prophetie' ? 'prophetien' : 'traeume')
-          .doc(id);
+    final collectionName = type == 'prophetie' ? 'prophetien' : 'traeume';
 
-      await docRef.set({
-        ...data,
-        'title': 'Wird analysiert',
-      }, SetOptions(merge: true));
+    try {
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'users/$userId/$collectionName-audio/$id.wav',
+      );
+      await storageRef.putFile(file);
+      final audioUrl = await storageRef.getDownloadURL();
 
-      // Direkt nach dem Speichern Bottom Sheet schließen und Callback aufrufen
-      if (mounted) {
-        Navigator.of(context).pop(); // Close selection bottom sheet
-        Navigator.of(context).pop(); // Close recording bottom sheet
-      }
-      if (widget.onSaved != null) {
-        widget.onSaved!();
-      }
+      if (shareAfter) {
+        final creatorName =
+            FirebaseAuth.instance.currentUser?.displayName ?? 'unbekannt';
+        final url =
+            'https://phone.simonnikel.de/add?type=$type&id=$id&creator=${Uri.encodeComponent(creatorName)}';
+        final shareText =
+            'Hey! Ich habe für dich eine ${type == 'traum' ? 'Traum' : 'Prophetie'} aufgenommen.\n\n$url';
 
-      final navState = context.findAncestorStateOfType<_MainNavigationState>();
-      if (type == 'prophetie') {
-        navState?._prophetienScreenKey.currentState?.handleNewProphetie(
-          id: id,
-          localFilePath: audioUrl,
-          transcriptText: null,
-          label: 'NEU',
-        );
+        final xfile = XFile(_recordingService.recordingPath!);
+        await Share.shareXFiles([xfile], text: shareText);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('gesendet')
+            .doc(id)
+            .set({
+              'text': null,
+              'label': type == 'traum' ? 'Traum' : 'Prophetie',
+              'timestamp': DateTime.now(),
+              'audioUrl': audioUrl,
+              'category': type,
+              'status': 'gesendet',
+              'creatorName': FirebaseAuth.instance.currentUser?.displayName,
+            });
       } else {
-        navState?._traeumeScreenKey.currentState?.handleNewTraum(
-          id: id,
-          localFilePath: audioUrl,
-          transcriptText: null,
-          label: 'NEU',
-        );
-      }
-    }
-
-    // 4. Analyse starten (nur bei "Für mich")
-    final localPath = _recordingService.recordingPath;
-    if (localPath != null) {
-      Future.microtask(() async {
-        final transcript = await transcribeAudioFile(localPath);
-        if (transcript != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection(type == 'prophetie' ? 'prophetien' : 'traeume')
-              .doc(id)
-              .set({'transcript': transcript}, SetOptions(merge: true));
-
-          if (type == 'traum') {
-            await analyzeAndSaveTraum(
-              transcript: transcript,
-              firestoreDocId: id,
-            );
-          } else {
-            await analyzeAndSaveProphetie(
-              transcript: transcript,
-              firestoreDocId: id,
-            );
-          }
+        final navState = context
+            .findAncestorStateOfType<_MainNavigationState>();
+        if (type == 'prophetie') {
+          await navState?._prophetienScreenKey.currentState?.handleNewProphetie(
+            id: id,
+            localFilePath: file.path,
+            label: 'NEU',
+          );
+        } else {
+          await navState?._traeumeScreenKey.currentState?.handleNewTraum(
+            id: id,
+            localFilePath: file.path,
+            label: 'NEU',
+          );
         }
-      });
-    }
-
-    // 5. Optional Teilen
-    if (shareAfter) {
-      final creatorName =
-          FirebaseAuth.instance.currentUser?.displayName ?? 'unbekannt';
-      final url =
-          'https://phone.simonnikel.de/add?type=$type&id=$id&creator=${Uri.encodeComponent(creatorName)}';
-      final shareText =
-          'Hey! Ich habe für dich eine ${type == 'traum' ? 'Traum' : 'Prophetie'} aufgenommen.\n\n$url';
-
-      // Share audio file as attachment with text
-      final xfile = XFile(_recordingService.recordingPath!);
-      await Share.shareXFiles([xfile], text: shareText);
-      // Optionally delete audio file after sharing
-      try {
-        await file.delete();
-      } catch (e) {
-        print('Datei konnte nach dem Teilen nicht gelöscht werden: $e');
       }
-      // Vor dem Speichern in die globale Liste in Firestore hochladen
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('gesendet')
-          .doc(id)
-          .set({
-            'text': null,
-            'label': type == 'traum' ? 'Traum' : 'Prophetie',
-            'timestamp': DateTime.now(),
-            'audioUrl': audioUrl,
-            'category': type,
-            'status': 'gesendet',
-            'creatorName': FirebaseAuth.instance.currentUser?.displayName,
-          });
-    }
 
-    // 6. Nach dem Speichern: refresh, Navigation
-    Future.microtask(() {
-      if (!mounted) return;
-      final navState = context.findAncestorStateOfType<_MainNavigationState>();
-      if (type == 'prophetie') {
-        Provider.of<ProphetieProvider>(context, listen: false).loadProphetien();
-        navState?._onTabTapped(1);
-      } else {
-        Provider.of<TraumProvider>(context, listen: false).loadTraeume();
-        navState?._onTabTapped(3);
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        final navState = context
+            .findAncestorStateOfType<_MainNavigationState>();
+        navState?._onTabTapped(type == 'prophetie' ? 1 : 3);
       }
-    });
-    // 7. Clear temp path
-    _isSaving = false;
+    } catch (e) {
+      // Handle errors, e.g., show a snackbar
+      print("Error saving recording: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
