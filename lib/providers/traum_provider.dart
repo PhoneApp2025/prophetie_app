@@ -13,7 +13,7 @@ class TraumProvider with ChangeNotifier {
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
-        .collection('träume')
+        .collection('traeume')
         .orderBy('timestamp', descending: true)
         .get();
     _traeume = snapshot.docs.map((doc) {
@@ -29,7 +29,7 @@ class TraumProvider with ChangeNotifier {
       }
       return Traum(
         id: doc.id,
-        text: data['text'] as String? ?? '',
+        transcript: data['transkript'] as String? ?? '',
         title: data['title'] as String? ?? '',
         label: data['label'] as String? ?? 'NEU',
         isFavorit: data['isFavorit'] as bool? ?? false,
@@ -46,7 +46,7 @@ class TraumProvider with ChangeNotifier {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
-        .collection('träume')
+        .collection('traeume')
         .doc(traum.id)
         .set(traum.toJson());
     _traeume.insert(0, traum);
@@ -69,7 +69,7 @@ class TraumProvider with ChangeNotifier {
       FirebaseFirestore.instance
           .collection('users')
           .doc(FirebaseAuth.instance.currentUser!.uid)
-          .collection('träume')
+          .collection('traeume')
           .doc(id)
           .update({
             'status': status.toString(),
@@ -82,5 +82,28 @@ class TraumProvider with ChangeNotifier {
   void removeTraum(String id) {
     _traeume.removeWhere((p) => p.id == id);
     notifyListeners();
+  }
+
+  Future<void> handleNewTraum({
+    required String id,
+    String? localFilePath,
+    String? transcriptText,
+    required String label,
+    String? creatorName,
+  }) async {
+    // This method should encapsulate the logic from the screen
+    // For now, we'll just add the traum and notify listeners
+    final newTraum = Traum(
+      id: id,
+      transcript: transcriptText ?? "Wird transkribiert...",
+      label: label,
+      isFavorit: false,
+      timestamp: DateTime.now(),
+      creatorName: creatorName,
+      status: transcriptText == null
+          ? ProcessingStatus.transcribing
+          : ProcessingStatus.analyzing,
+    );
+    await addTraum(newTraum);
   }
 }
