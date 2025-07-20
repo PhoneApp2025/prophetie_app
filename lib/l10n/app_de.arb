@@ -1,0 +1,9 @@
+{
+    "helloWorld": "Hallo Welt!",
+    "topHits": "Top Treffer",
+    "noConnections": "Sobald du mehr Prophetien und Träume hast, werden hier passende Verbindungen angezeigt.",
+    "oftenRead": "Oft gelesen",
+    "seeAll": "Alles sehen",
+    "errorLoading": "Fehler beim Laden: {error}",
+    "noBlogArticles": "Keine Blogartikel verfügbar."
+}

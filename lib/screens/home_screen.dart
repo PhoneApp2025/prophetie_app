@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:prophetie_app/l10n/app_localizations.dart';
 import 'package:prophetie_app/screens/all_blog_screen.dart';
 import '../models/prophetie.dart';
 import '../models/traum.dart';
@@ -188,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             bottom: 0.0,
                           ),
                           child: Text(
-                            "Top Treffer",
+                            AppLocalizations.of(context)!.topHits,
                             style: TextStyle(
                               fontSize: 25,
                               fontWeight: FontWeight.bold,
@@ -227,8 +228,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Color.fromARGB(255, 167, 167, 167),
                                 ),
                                 const SizedBox(height: 18),
-                                const Text(
-                                  'Sobald du mehr Prophetien und Träume hast, werden hier passende Verbindungen angezeigt.',
+                                Text(
+                                  AppLocalizations.of(context)!.noConnections,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(fontSize: 15),
                                 ),
@@ -262,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              "Oft gelesen",
+                              AppLocalizations.of(context)!.oftenRead,
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -282,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                               child: Text(
-                                "Alles sehen",
+                                AppLocalizations.of(context)!.seeAll,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -308,11 +309,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                             } else if (snapshot.hasError) {
                               return Text(
-                                'Fehler beim Laden: ${snapshot.error}',
+                                AppLocalizations.of(context)!
+                                    .errorLoading(snapshot.error.toString()),
                               );
                             } else if (!snapshot.hasData ||
                                 snapshot.data!.isEmpty) {
-                              return const Text('Keine Blogartikel verfügbar.');
+                              return Text(
+                                  AppLocalizations.of(context)!.noBlogArticles);
                             } else {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,

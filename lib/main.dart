@@ -8,6 +8,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:prophetie_app/l10n/app_localizations.dart';
 import 'screens/auth_gate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -20,6 +21,7 @@ import 'package:provider/provider.dart';
 import 'package:prophetie_app/providers/prophetie_provider.dart';
 import 'package:prophetie_app/providers/traum_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:prophetie_app/providers/language_provider.dart';
 import 'widgets/main_navigation.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -31,7 +33,7 @@ Future<void> main() async {
 
   await dotenv.load(fileName: ".env");
 
-  await initializeDateFormatting('de_DE', null);
+  await initializeDateFormatting();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -62,6 +64,7 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => ProphetieProvider()),
         ChangeNotifierProvider(create: (context) => TraumProvider()),
+        ChangeNotifierProvider(create: (context) => LanguageProvider()),
       ],
       child: MyApp(),
     ),
@@ -233,18 +236,22 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (context, currentMode, child) {
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
         return MaterialApp(
+          locale: languageProvider.appLocale,
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           localizationsDelegates: const [
+            AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [Locale('de', 'DE')],
+          supportedLocales: const [
+            Locale('de', 'DE'),
+            Locale('en', 'US'),
+          ],
           routes: {
             '/authGate': (context) => const AuthGate(),
             '/subscriptionGate': (context) =>

@@ -1,0 +1,9 @@
+{
+    "helloWorld": "Hello World!",
+    "topHits": "Top Hits",
+    "noConnections": "As soon as you have more prophecies and dreams, suitable connections will be displayed here.",
+    "oftenRead": "Often Read",
+    "seeAll": "See All",
+    "errorLoading": "Error loading: {error}",
+    "noBlogArticles": "No blog articles available."
+}
