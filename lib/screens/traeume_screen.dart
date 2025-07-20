@@ -81,85 +81,6 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     Provider.of<TraumProvider>(context, listen: false).loadTraeume();
   }
 
-  /// Shared logic for creating and analyzing a new Prophetie.
-  Future<void> handleNewTraum({
-    required String id,
-    String? localFilePath,
-    String? transcriptText,
-    required String label,
-    String? creatorName,
-  }) async {
-    final traumProvider = Provider.of<TraumProvider>(context, listen: false);
-    final newTraum = Traum(
-      id: id,
-      text: transcriptText ?? "Wird transkribiert...",
-      label: label,
-      isFavorit: false,
-      timestamp: DateTime.now(),
-      creatorName: creatorName,
-      status: transcriptText == null
-          ? ProcessingStatus.transcribing
-          : ProcessingStatus.analyzing,
-    );
-    traumProvider.addTraum(newTraum);
-
-    try {
-      if (localFilePath != null) {
-        // Audio-Workflow
-        final storageRef = FirebaseStorage.instance.ref().child(
-          'users/${FirebaseAuth.instance.currentUser!.uid}/traeume/$id',
-        );
-        await storageRef.putFile(File(localFilePath));
-        final downloadUrl = await storageRef.getDownloadURL();
-
-        await transcribeAndPrepareAnalysis(
-          filePath: downloadUrl,
-          docId: id,
-          collectionName: 'traeume',
-          isRemoteUrl: true,
-          onComplete: () async {
-            final snapshot = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser!.uid)
-                .collection('traeume')
-                .doc(id)
-                .get();
-            final transcript = snapshot.data()?['transcript'] as String?;
-            if (transcript != null && transcript.isNotEmpty) {
-              traumProvider.updateTraumStatus(id, ProcessingStatus.analyzing);
-              await analyzeAndSaveTraum(
-                transcript: transcript,
-                firestoreDocId: id,
-                onReload: traumProvider.loadTraeume,
-              );
-              traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
-            } else {
-              traumProvider.updateTraumStatus(
-                id,
-                ProcessingStatus.failed,
-                errorMessage: "Transcription failed",
-              );
-            }
-          },
-        );
-      } else if (transcriptText != null) {
-        // Text-Workflow
-        await analyzeAndSaveTraum(
-          transcript: transcriptText,
-          firestoreDocId: id,
-          onReload: traumProvider.loadTraeume,
-        );
-        traumProvider.updateTraumStatus(id, ProcessingStatus.complete);
-      }
-    } catch (e) {
-      traumProvider.updateTraumStatus(
-        id,
-        ProcessingStatus.failed,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
   Future<void> _checkInternetAndLoadData() async {
     try {
       final result = await InternetAddress.lookup('example.com');
@@ -208,29 +129,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     // For each doc, check isAnalyzed and trigger analysis if needed
     for (final doc in snapshot.docs) {
       final d = doc.data();
-      loaded.add(
-        Traum(
-          id: doc.id,
-          text: d['text'] as String? ?? '',
-          label: d['label'] as String? ?? 'Neu',
-          isFavorit: d['isFavorit'] as bool? ?? false,
-          timestamp: (d['timestamp'] is Timestamp)
-              ? (d['timestamp'] as Timestamp).toDate()
-              : DateTime.now(),
-          filePath: d['audioUrl'] as String? ?? d['filePath'] as String?,
-          creatorName: d['creatorName'] as String?,
-          mainPoints: d['mainPoints'] as String?,
-          summary: d['summary'] as String?,
-          verses: d['verses'] as String?,
-          questions: d['questions'] as String?,
-          similar: d['similar'] as String?,
-          title: d['title'] as String?,
-          storiesExamplesCitations: d['storiesExamplesCitations'] as String?,
-          actionItems: d['actionItems'] as String?,
-          relatedTopics: d['relatedTopics'] as String?,
-          transcript: d['transcript'] as String?,
-        ),
-      );
+      loaded.add(Traum.fromJson(d));
     }
     // Sort loaded Prophetien by timestamp descending (newest first)
     loaded.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -319,7 +218,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     if (result == null || result.files.single.path == null) return;
     final filePath = result.files.single.path!;
     final id = const Uuid().v4();
-    await handleNewTraum(
+    await Provider.of<TraumProvider>(context, listen: false).handleNewTraum(
       id: id,
       localFilePath: filePath,
       transcriptText: null,
@@ -432,7 +331,10 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                       // Set processing false and then pop sheet
                       setModalState(() => isProcessing = false);
                       Navigator.of(ctx).pop();
-                      await handleNewTraum(
+                      await Provider.of<TraumProvider>(
+                        context,
+                        listen: false,
+                      ).handleNewTraum(
                         id: newId,
                         localFilePath: null,
                         transcriptText: enteredText,
@@ -1007,7 +909,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
             context: context,
             isScrollControlled: true,
             backgroundColor: Theme.of(context).cardColor,
-            builder: (_) => TraumDetailSheet(traum: t),
+            builder: (_) => TraumDetailSheet(traumId: t.id),
           );
         },
         child: Container(
@@ -1070,7 +972,9 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          (t.title?.isNotEmpty ?? false) ? t.title! : t.text,
+                          (t.title?.isNotEmpty ?? false)
+                              ? t.title!
+                              : "Kein Titel",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -1287,7 +1191,6 @@ extension TraumeCopyWith on Traum {
   }) {
     return Traum(
       id: id ?? this.id,
-      text: text ?? this.text,
       label: label ?? this.label,
       isFavorit: isFavorit ?? this.isFavorit,
       timestamp: timestamp ?? this.timestamp,
@@ -1355,7 +1258,6 @@ Future<void> saveTraeume() async {
         .doc(id)
         .set({
           'id': id,
-          'text': traum.text,
           'filePath': traum.filePath,
           'audioUrl': traum.filePath, // Save audioUrl for consistency
           'timestamp': FieldValue.serverTimestamp(),
