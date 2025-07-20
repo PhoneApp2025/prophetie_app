@@ -11,7 +11,7 @@ import '../services/audio_transcription_service.dart';
 
 class TraumDetailSheet extends StatefulWidget {
   final String traumId;
-  const TraumDetailSheet({required this.traumId, Key? key}) : super(key: key);
+  const TraumDetailSheet({Key? key, required this.traumId}) : super(key: key);
 
   @override
   State<TraumDetailSheet> createState() => _TraumDetailSheetState();
@@ -550,9 +550,15 @@ class _TraumDetailSheetState extends State<TraumDetailSheet> {
                     ),
                     const SizedBox(height: 20),
                     // Audio player if present
-                    if ((data['audioUrl'] as String?)?.isNotEmpty == true)
+                    if (((data['audioUrl'] as String?)?.isNotEmpty == true) ||
+                        ((data['driveAudioId'] as String?)?.isNotEmpty ==
+                            true) ||
+                        ((data['filePath'] as String?)?.isNotEmpty == true))
                       _ProphetieAudioPlayer(
-                        audioPath: data['audioUrl'] as String,
+                        audioPath:
+                            (data['audioUrl'] as String?) ??
+                            (data['driveAudioId'] as String?) ??
+                            (data['filePath'] as String)!,
                         audioPlayer: _audioPlayer,
                       ),
                     const SizedBox(height: 24),
@@ -658,7 +664,6 @@ class _TraumDetailSheetState extends State<TraumDetailSheet> {
                     _TranscriptSection(
                       traum: Traum(
                         id: widget.traumId,
-                        text: data['text'] as String? ?? '',
                         label: data['label'] as String? ?? '',
                         isFavorit: data['isFavorit'] as bool? ?? false,
                         timestamp: (data['timestamp'] as Timestamp).toDate(),
@@ -970,7 +975,7 @@ class _TranscriptSectionState extends State<_TranscriptSection> {
     final rawTranscript = widget.traum.transcript;
     final transcript = (rawTranscript != null && rawTranscript.isNotEmpty)
         ? rawTranscript
-        : (widget.traum.text ?? '');
+        : (widget.traum.transcript ?? '');
     if (transcript.isEmpty) {
       return const SizedBox.shrink();
     }
