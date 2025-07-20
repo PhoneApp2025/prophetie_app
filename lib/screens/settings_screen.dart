@@ -11,6 +11,8 @@ import 'package:prophetie_app/main.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:prophetie_app/widgets/blurred_dialog.dart';
+import 'package:provider/provider.dart';
+import 'package:prophetie_app/providers/language_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -309,27 +311,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             Colors.black,
                       ),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          selectedLanguage,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color:
-                                Theme.of(context).textTheme.bodyLarge?.color ??
-                                Colors.black,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 14,
-                          color: Theme.of(context).iconTheme.color,
-                        ),
+                    trailing: DropdownButton<String>(
+                      value: Provider.of<LanguageProvider>(context).appLocale.languageCode,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            Theme.of(context).textTheme.bodyLarge?.color ??
+                            Colors.black,
+                      ),
+                      underline: const SizedBox(),
+                      onChanged: (String? value) {
+                        if (value != null) {
+                          Provider.of<LanguageProvider>(context, listen: false)
+                              .changeLanguage(Locale(value));
+                        }
+                      },
+                      items: const [
+                        DropdownMenuItem(value: 'de', child: Text('Deutsch')),
+                        DropdownMenuItem(value: 'en', child: Text('English')),
                       ],
                     ),
-                    onTap: () {},
                   ),
                   Divider(
                     height: 1,
