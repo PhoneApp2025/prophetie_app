@@ -389,8 +389,9 @@ class TraeumeScreenState extends State<TraeumeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
           maxChildSize: 0.8,
@@ -431,8 +432,8 @@ class TraeumeScreenState extends State<TraeumeScreen> {
               },
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 

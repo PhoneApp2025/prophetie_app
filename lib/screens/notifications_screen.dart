@@ -31,7 +31,6 @@ class NotificationsScreen extends StatelessWidget {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset('assets/images/notifications.png', fit: BoxFit.cover),
             Center(
               child: Text(
                 'Hier erscheinen deine Benachrichtigungen.\n\n',

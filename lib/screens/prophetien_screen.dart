@@ -399,8 +399,9 @@ class ProphetienScreenState extends State<ProphetienScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
           maxChildSize: 0.8,
@@ -441,8 +442,8 @@ class ProphetienScreenState extends State<ProphetienScreen> {
               },
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -943,8 +944,11 @@ class ProphetienScreenState extends State<ProphetienScreen> {
             final userId = FirebaseAuth.instance.currentUser?.uid;
             if (userId != null) {
               // Delete audio file if present
-              final audioUrl = p.filePath;
-              if (audioUrl != null && audioUrl.isNotEmpty) {
+              final audioUrl = p.driveAudioId;
+              if (audioUrl != null &&
+                  audioUrl.isNotEmpty &&
+                  (audioUrl.startsWith('https://') ||
+                      audioUrl.startsWith('gs://'))) {
                 await FirebaseStorage.instance
                     .refFromURL(audioUrl)
                     .delete()
@@ -1005,11 +1009,12 @@ class ProphetienScreenState extends State<ProphetienScreen> {
           SlidableAction(
             onPressed: (_) async {
               final userId = FirebaseAuth.instance.currentUser?.uid;
-              final prophetienId = p.id;
-              if (userId != null && prophetienId != null) {
-                // Delete audio if exists
-                final audioUrl = p.filePath;
-                if (audioUrl != null && audioUrl.isNotEmpty) {
+              if (userId != null) {
+                final audioUrl = p.driveAudioId;
+                if (audioUrl != null &&
+                    audioUrl.isNotEmpty &&
+                    (audioUrl.startsWith('https://') ||
+                        audioUrl.startsWith('gs://'))) {
                   await FirebaseStorage.instance
                       .refFromURL(audioUrl)
                       .delete()
@@ -1019,14 +1024,14 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                     .collection('users')
                     .doc(userId)
                     .collection('prophetien')
-                    .doc(prophetienId)
+                    .doc(p.id)
                     .delete()
                     .catchError((_) {});
               }
-              setState(() {
-                prophetien.removeWhere((element) => element.id == p.id);
-              });
-              await saveProphetien();
+              Provider.of<ProphetieProvider>(
+                context,
+                listen: false,
+              ).removeProphetie(p.id);
             },
             backgroundColor: Colors.red,
             borderRadius: BorderRadius.zero,

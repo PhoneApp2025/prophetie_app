@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:flutter/services.dart';
 
 class PurchaseService {
   static const _apiKey = 'appl_BmgohkROLRDaEyXUtsncvUcsCxN';
@@ -42,5 +43,35 @@ class PurchaseService {
 
   void dispose() {
     // No-op
+  }
+
+  Future<bool> purchaseDefaultPackage() async {
+    try {
+      final offerings = await this.getOfferings();
+      if (offerings.isEmpty) return false;
+
+      final offering = offerings.firstWhere(
+        (o) => o.identifier == 'default',
+        orElse: () => offerings.first,
+      );
+
+      final package = offering.availablePackages.first;
+
+      final customerInfo = await Purchases.purchasePackage(package);
+
+      // Überprüfe, ob das Abo wirklich aktiv ist
+      return customerInfo.entitlements.active['phone_plus']?.isActive ?? false;
+    } on PlatformException catch (e) {
+      if (e.code == 'purchase_cancelled') {
+        print('Kauf wurde vom Nutzer abgebrochen');
+        return false;
+      } else {
+        print('PlatformException: ${e.code}');
+        return false;
+      }
+    } catch (e) {
+      print('Kauf fehlgeschlagen: $e');
+      return false;
+    }
   }
 }

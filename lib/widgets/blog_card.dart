@@ -154,25 +154,25 @@ class _BlogCardState extends State<BlogCard> {
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 12,
-                    right: 16,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        iconSize: 20,
-                        icon: Icon(
-                          _isFavorite ? Icons.bookmark : Icons.bookmark_border,
-                          color: _isFavorite ? Colors.pink : Colors.black,
-                          size: 20,
-                        ),
-                        onPressed: _toggleFavorite,
-                      ),
-                    ),
-                  ),
+                  // Positioned(
+                  //   top: 12,
+                  //   right: 16,
+                  //   child: Container(
+                  //     decoration: const BoxDecoration(
+                  //       color: Colors.white,
+                  //       shape: BoxShape.circle,
+                  //     ),
+                  //     child: IconButton(
+                  //       iconSize: 20,
+                  //       icon: Icon(
+                  //         _isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                  //         color: _isFavorite ? Colors.pink : Colors.black,
+                  //         size: 20,
+                  //       ),
+                  //       onPressed: _toggleFavorite,
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
               Padding(

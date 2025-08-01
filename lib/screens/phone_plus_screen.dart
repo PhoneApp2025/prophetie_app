@@ -360,32 +360,28 @@ class _PhonePlusScreenState extends State<PhonePlusScreen> {
                                       ? const CircularProgressIndicator()
                                       : ElevatedButton(
                                           onPressed: () async {
-                                            //   setState(() {
-                                            //    _purchasePending = true;
-                                            //  });
-                                            //   final offerings =
-                                            //      await _purchaseService
-                                            //       .getOfferings();
-                                            // final package = offerings
-                                            //       .firstWhere(
-                                            //           (o) =>
-                                            //                   o.identifier == 'default',
-                                            //             orElse: () =>
-                                            //                           offerings.isNotEmpty
-                                            //                         ? offerings.first
-                                            //                       : null,
-                                            //               )
-                                            //               ?.availablePackages
-                                            //             .first;
-                                            //       if (package != null) {
-                                            ///       await _purchaseService
-                                            //        .purchasePackage(package);
-                                            _confettiController
-                                                .play(); // show confetti on success
-                                            //      }
+                                            setState(() {
+                                              _purchasePending = true;
+                                            });
+
+                                            final success =
+                                                await _purchaseService
+                                                    .purchaseDefaultPackage();
+
                                             setState(() {
                                               _purchasePending = false;
                                             });
+
+                                            if (success) {
+                                              _confettiController.play();
+                                              showFlushbar(
+                                                'Abo erfolgreich aktiviert 🎉',
+                                              );
+                                            } else {
+                                              showFlushbar(
+                                                'Kauf fehlgeschlagen. Bitte erneut versuchen.',
+                                              );
+                                            }
                                           },
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: pink,

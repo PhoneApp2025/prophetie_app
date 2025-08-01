@@ -213,7 +213,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
                             ),
                           ),
                         ),
-                        const Divider(height: 1, indent: 17, endIndent: 16),
                         // ListTile(
                         //   dense: true,
                         //   contentPadding: const EdgeInsets.symmetric(horizontal: 12),

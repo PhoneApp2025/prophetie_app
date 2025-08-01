@@ -270,6 +270,10 @@ class _MyAppState extends State<MyApp> {
             useMaterial3: true,
             brightness: Brightness.light,
             scaffoldBackgroundColor: const Color(0xFFF3F2F8),
+            primaryColor: Color(0xFFFF2D55),
+            textSelectionTheme: TextSelectionThemeData(
+              cursorColor: Color(0xFFFF2D55),
+            ),
             cardColor: Colors.white,
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.grey,
@@ -344,6 +348,10 @@ class _MyAppState extends State<MyApp> {
             useMaterial3: true,
             brightness: Brightness.dark,
             scaffoldBackgroundColor: Colors.black,
+            primaryColor: Color(0xFFFF2D55),
+            textSelectionTheme: TextSelectionThemeData(
+              cursorColor: Color(0xFFFF2D55),
+            ),
             cardColor: const Color(0xFF1C1C1E),
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.grey,

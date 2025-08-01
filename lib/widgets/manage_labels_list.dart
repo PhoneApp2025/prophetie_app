@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../main.dart';
 
 bool isLabelNameValid(String name) {
   final forbidden = RegExp(r'[/.\\\[\]#\$]');
@@ -72,7 +73,9 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
                       child: TextField(
                         controller: _addLabelController,
                         decoration: InputDecoration(
-                          hintText: 'Neues Label eingeben',
+                          labelText: 'Neues Label eingeben',
+                          floatingLabelStyle: TextStyle(color: Colors.white),
+
                           filled: true,
                           fillColor:
                               Theme.of(context).brightness == Brightness.dark
@@ -95,12 +98,8 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
                         final value = _addLabelController.text.trim();
                         if (value.isNotEmpty) {
                           if (!isLabelNameValid(value)) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
-                                ),
-                              ),
+                            showFlushbar(
+                              'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
                             );
                             return;
                           }
@@ -123,133 +122,134 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
             buildDefaultDragHandles: true,
             children: [
               for (final label in widget.labels)
-                ListTile(
-                  key: ValueKey(label),
-                  title: Text(label),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () async {
-                          final newValue = await showDialog<String>(
-                            context: context,
-                            builder: (context) {
-                              final controller = TextEditingController(
-                                text: label,
-                              );
-                              return AlertDialog(
-                                title: const Text('Label umbenennen'),
-                                content: TextField(controller: controller),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(
-                                      context,
-                                    ).pop(controller.text),
-                                    child: const Text('Speichern'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                          if (newValue != null &&
-                              newValue.isNotEmpty &&
-                              newValue != label) {
-                            if (!isLabelNameValid(newValue)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
-                                  ),
-                                ),
-                              );
-                              return;
+                Dismissible(
+                  key: ValueKey('dismiss_$label'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  onDismissed: (_) async {
+                    final firestore = FirebaseFirestore.instance;
+                    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                    // Labels aus Träumen entfernen
+                    final dreams = await firestore
+                        .collection('users')
+                        .doc(uid)
+                        .collection('traeume')
+                        .where('labels', arrayContains: label)
+                        .get();
+
+                    for (final doc in dreams.docs) {
+                      await doc.reference.update({
+                        'labels': FieldValue.arrayRemove([label]),
+                      });
+                    }
+
+                    // Labels aus Prophetien entfernen
+                    final props = await firestore
+                        .collection('users')
+                        .doc(uid)
+                        .collection('prophetien')
+                        .where('labels', arrayContains: label)
+                        .get();
+
+                    for (final doc in props.docs) {
+                      await doc.reference.update({
+                        'labels': FieldValue.arrayRemove([label]),
+                      });
+                    }
+
+                    widget.onDelete(label);
+
+                    showFlushbar(
+                      'Label wurde entfernt. Einträge wurden aktualisiert.',
+                    );
+                  },
+                  child: ListTile(
+                    leading: const Icon(Icons.drag_handle),
+                    // key: ValueKey(label), // entfernt, da im Dismissible
+                    title: Text(label),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () async {
+                            final newValue = await showDialog<String>(
+                              context: context,
+                              builder: (context) {
+                                final controller = TextEditingController(
+                                  text: label,
+                                );
+                                return AlertDialog(
+                                  title: const Text('Label umbenennen'),
+                                  content: TextField(controller: controller),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(
+                                        context,
+                                      ).pop(controller.text),
+                                      child: const Text('Speichern'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (newValue != null &&
+                                newValue.isNotEmpty &&
+                                newValue != label) {
+                              if (!isLabelNameValid(newValue)) {
+                                showFlushbar(
+                                  'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
+                                );
+                                return;
+                              }
+                              final firestore = FirebaseFirestore.instance;
+                              final uid =
+                                  FirebaseAuth.instance.currentUser!.uid;
+
+                              // Update labels in dreams
+                              final dreams = await firestore
+                                  .collection('users')
+                                  .doc(uid)
+                                  .collection('traeume')
+                                  .where('labels', arrayContains: label)
+                                  .get();
+                              for (final doc in dreams.docs) {
+                                await doc.reference.update({
+                                  'labels': FieldValue.arrayRemove([label]),
+                                });
+                                await doc.reference.update({
+                                  'labels': FieldValue.arrayUnion([newValue]),
+                                });
+                              }
+
+                              // Update labels in prophecies
+                              final props = await firestore
+                                  .collection('users')
+                                  .doc(uid)
+                                  .collection('prophetien')
+                                  .where('labels', arrayContains: label)
+                                  .get();
+                              for (final doc in props.docs) {
+                                await doc.reference.update({
+                                  'labels': FieldValue.arrayRemove([label]),
+                                });
+                                await doc.reference.update({
+                                  'labels': FieldValue.arrayUnion([newValue]),
+                                });
+                              }
+
+                              widget.onRename(label, newValue);
                             }
-                            final firestore = FirebaseFirestore.instance;
-                            final uid = FirebaseAuth.instance.currentUser!.uid;
-
-                            // Update labels in dreams
-                            final dreams = await firestore
-                                .collection('users')
-                                .doc(uid)
-                                .collection('traeume')
-                                .where('labels', arrayContains: label)
-                                .get();
-                            for (final doc in dreams.docs) {
-                              await doc.reference.update({
-                                'labels': FieldValue.arrayRemove([label]),
-                              });
-                              await doc.reference.update({
-                                'labels': FieldValue.arrayUnion([newValue]),
-                              });
-                            }
-
-                            // Update labels in prophecies
-                            final props = await firestore
-                                .collection('users')
-                                .doc(uid)
-                                .collection('prophetien')
-                                .where('labels', arrayContains: label)
-                                .get();
-                            for (final doc in props.docs) {
-                              await doc.reference.update({
-                                'labels': FieldValue.arrayRemove([label]),
-                              });
-                              await doc.reference.update({
-                                'labels': FieldValue.arrayUnion([newValue]),
-                              });
-                            }
-
-                            widget.onRename(label, newValue);
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete),
-                        onPressed: () async {
-                          final firestore = FirebaseFirestore.instance;
-                          final uid = FirebaseAuth.instance.currentUser!.uid;
-
-                          // Labels aus Träumen entfernen
-                          final dreams = await firestore
-                              .collection('users')
-                              .doc(uid)
-                              .collection('traeume')
-                              .where('labels', arrayContains: label)
-                              .get();
-
-                          for (final doc in dreams.docs) {
-                            await doc.reference.update({
-                              'labels': FieldValue.arrayRemove([label]),
-                            });
-                          }
-
-                          // Labels aus Prophetien entfernen
-                          final props = await firestore
-                              .collection('users')
-                              .doc(uid)
-                              .collection('prophetien')
-                              .where('labels', arrayContains: label)
-                              .get();
-
-                          for (final doc in props.docs) {
-                            await doc.reference.update({
-                              'labels': FieldValue.arrayRemove([label]),
-                            });
-                          }
-
-                          widget.onDelete(label);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Label wurde entfernt. Einträge wurden aktualisiert.',
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
             ],

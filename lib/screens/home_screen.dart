@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:prophetie_app/screens/all_blog_screen.dart';
@@ -147,8 +148,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+        statusBarBrightness: Theme.of(context).brightness == Brightness.dark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
+    );
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: null,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
@@ -167,7 +179,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverAppBar(
                   floating: true,
                   snap: true,
-                  backgroundColor: Colors.transparent,
+                  toolbarHeight: kToolbarHeight,
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                   elevation: 0,
                   flexibleSpace: const CustomAppBar(isHome: true),
                 ),
