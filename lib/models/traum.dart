@@ -18,7 +18,6 @@ class Traum {
   final String? title;
   final String? storiesExamplesCitations;
   final String? actionItems;
-  final String? relatedTopics;
   final String? transcript;
   final String? driveAudioId;
   final ProcessingStatus status;
@@ -41,7 +40,6 @@ class Traum {
     this.title,
     this.storiesExamplesCitations,
     this.actionItems,
-    this.relatedTopics,
     this.transcript,
     this.driveAudioId,
     this.status = ProcessingStatus.none,
@@ -65,7 +63,6 @@ class Traum {
     String? title,
     String? storiesExamplesCitations,
     String? actionItems,
-    String? relatedTopics,
     String? transcript,
     String? driveAudioId,
     ProcessingStatus? status,
@@ -89,7 +86,6 @@ class Traum {
       storiesExamplesCitations:
           storiesExamplesCitations ?? this.storiesExamplesCitations,
       actionItems: actionItems ?? this.actionItems,
-      relatedTopics: relatedTopics ?? this.relatedTopics,
       transcript: transcript ?? this.transcript,
       driveAudioId: driveAudioId ?? this.driveAudioId,
       status: status ?? this.status,
@@ -115,7 +111,6 @@ class Traum {
       'title': title,
       'storiesExamplesCitations': storiesExamplesCitations,
       'actionItems': actionItems,
-      'relatedTopics': relatedTopics,
       'transcript': transcript,
       'driveAudioId': driveAudioId,
       'status': status.toString(),
@@ -193,7 +188,6 @@ class Traum {
       title: parseField(json['title']),
       storiesExamplesCitations: parseField(json['storiesExamplesCitations']),
       actionItems: parseField(json['actionItems']),
-      relatedTopics: parseField(json['relatedTopics']),
       transcript: parseField(json['transcript']),
       driveAudioId: json['driveAudioId'],
       status: parseProcessingStatus(json['status']),

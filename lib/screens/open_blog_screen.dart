@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 const Color _kAccent = Color(0xFFFF2C55);
 
@@ -70,10 +71,13 @@ class _OpenBlogScreenState extends State<OpenBlogScreen> {
                 // Bild
                 Positioned.fill(
                   child: widget.imageUrl.isNotEmpty
-                      ? Image.network(
-                          widget.imageUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: widget.imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          placeholder: (_, __) => Container(
+                            color: theme.dividerColor.withOpacity(0.1),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
                             color: theme.dividerColor.withOpacity(0.1),
                           ),
                         )

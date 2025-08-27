@@ -169,26 +169,26 @@ class _RegisterScreenState extends State<RegisterScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 36),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       "Nun beginnt Verwalterschaft",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 22,
+                        fontSize: MediaQuery.of(context).size.width > 600 ? 28 : 22,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.left,
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       "Erstelle einen Account, um Prophetien und Träume zu speichern. Bitte lese zunächst die Nutzungshinweise durch und akzeptiere sie, um fortzufahren.",
                       style: TextStyle(
                         color: Colors.white70,
-                        fontSize: 14,
+                        fontSize: MediaQuery.of(context).size.width > 600 ? 18 : 14,
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.left,

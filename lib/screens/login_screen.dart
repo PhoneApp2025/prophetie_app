@@ -586,6 +586,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isTablet = screenWidth > 600;
     // on small devices (e.g. iPhone SE), use 40% down; on larger (e.g. iPhone 16 Pro), use ~68% to match original layout
     final isSmallScreen = screenHeight < 700;
     final nonSlideUpFraction = isSmallScreen ? 0.4 : 0.68;
@@ -626,108 +628,101 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: Padding(
-                      padding: const EdgeInsets.only(
-                        left: 22,
-                        right: 22,
-                        bottom: 35,
+                      padding: EdgeInsets.only(
+                        left: isTablet ? 60 : 22,
+                        right: isTablet ? 60 : 22,
+                        bottom: isTablet ? 60 : 35,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () {
-                                      HapticFeedback.lightImpact();
-                                      _showLoginSheet(context);
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color.fromARGB(
-                                  255,
-                                  21,
-                                  21,
-                                  21,
-                                ),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 3,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Einloggen',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isTablet ? 500 : double.infinity,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () {
+                                        HapticFeedback.lightImpact();
+                                        _showLoginSheet(context);
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color.fromARGB(255, 21, 21, 21),
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isTablet ? 18 : 13,
                                   ),
-                                  const SizedBox(width: 12),
-                                  const Icon(Icons.login, color: Colors.white),
-                                ],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 3,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Text(
+                                      'Einloggen',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Icon(Icons.login, color: Colors.white),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () async {
-                                      HapticFeedback.lightImpact();
-                                      setState(() => _slideUp = true);
-                                      await Future.delayed(
-                                        const Duration(milliseconds: 620),
-                                      );
-                                      if (mounted) {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          PageRouteBuilder(
-                                            pageBuilder: (_, __, ___) =>
-                                                const OnboardingPage(),
-                                            transitionsBuilder:
-                                                (_, __, ___, child) => child,
-                                            transitionDuration: Duration.zero,
-                                          ),
-                                        );
-                                      }
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black87,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () async {
+                                        HapticFeedback.lightImpact();
+                                        setState(() => _slideUp = true);
+                                        await Future.delayed(const Duration(milliseconds: 620));
+                                        if (mounted) {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            PageRouteBuilder(
+                                              pageBuilder: (_, __, ___) => const OnboardingPage(),
+                                              transitionsBuilder: (_, __, ___, child) => child,
+                                              transitionDuration: Duration.zero,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black87,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isTablet ? 18 : 13,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 3,
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 3,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Los geht\'s!',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Text(
+                                      'Los geht\'s!',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Icon(
-                                    Icons.arrow_forward,
-                                    color: Colors.black87,
-                                  ),
-                                ],
+                                    SizedBox(width: 12),
+                                    Icon(Icons.arrow_forward, color: Colors.black87),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

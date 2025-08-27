@@ -1,147 +1,179 @@
-import 'package:flutter/material.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+
+import '../main.dart'; // navigatorKey
 import '../screens/share_import_screen.dart';
-import '../main.dart'; // for navigatorKey
 
 class SharingIntentService {
-  static StreamSubscription? _intentDataStreamSubscription;
+  static StreamSubscription? _sub;
   static bool _isNavigating = false;
 
-  /// Initializes listeners for sharing intents. Call this once from main().
-  static void init(BuildContext context) {
-    print("[SharingIntentService] Initializing...");
-    if (_intentDataStreamSubscription != null) {
-      print("[SharingIntentService] Already initialized.");
+  // De-Dupe: merke, was zuletzt geöffnet wurde, plus kleiner Cooldown
+  static String? _lastHandledPath;
+  static DateTime _lastHandledAt = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _dedupeWindow = Duration(seconds: 2);
+
+  /// Call this ONCE after runApp(), am besten via addPostFrameCallback.
+  static void init() {
+    debugPrint("[SharingIntentService] init...");
+    if (_sub != null) {
+      debugPrint("[SharingIntentService] already initialized");
       return;
     }
 
-    // Listener: App läuft und erhält eine Datei
-    _intentDataStreamSubscription = ReceiveSharingIntent.instance
-        .getMediaStream()
-        .listen(
-          (List<SharedMediaFile> value) {
-            print(
-              "[SharingIntentService] Received media stream: ${value.map((f) => f.path).join(', ')}",
-            );
-            if (value.isNotEmpty) {
-              final SharedMediaFile audio = value.firstWhere((f) {
-                final lower = f.path.toLowerCase();
-                return lower.endsWith('.m4a') ||
-                    lower.endsWith('.wav') ||
-                    lower.endsWith('.aac') ||
-                    lower.endsWith('.mp3') ||
-                    lower.endsWith('.caf');
-              }, orElse: () => value.first);
-              _openImportScreen(audio.path);
-            } else {
-              print("[SharingIntentService] Media stream was empty.");
-            }
-          },
-          onError: (err) {
-            print("[SharingIntentService] getMediaStream error: $err");
-          },
+    // 1) Warmstart: App läuft bereits
+    _sub = ReceiveSharingIntent.instance.getMediaStream().listen(
+      (items) async {
+        debugPrint(
+          "[SharingIntentService] stream: ${items.map((f) => f.path).join(', ')}",
         );
-    print("[SharingIntentService] Media stream listener set up.");
-
-    // Listener: App wird durch Teilen gestartet
-    ReceiveSharingIntent.instance.getInitialMedia().then((
-      List<SharedMediaFile> value,
-    ) {
-      print(
-        "[SharingIntentService] Received initial media: ${value.map((f) => f.path).join(', ')}",
-      );
-      if (value.isNotEmpty) {
-        final SharedMediaFile audio = value.firstWhere((f) {
-          final lower = f.path.toLowerCase();
-          return lower.endsWith('.m4a') ||
-              lower.endsWith('.wav') ||
-              lower.endsWith('.aac') ||
-              lower.endsWith('.mp3') ||
-              lower.endsWith('.caf');
-        }, orElse: () => value.first);
-        _openImportScreen(audio.path);
-      } else {
-        print("[SharingIntentService] Initial media was empty.");
-      }
-    });
-    print("[SharingIntentService] Initial media handler set up.");
-  }
-
-  /// Stops listening to sharing intents. Call this in dispose if needed.
-  static void dispose() {
-    print("[SharingIntentService] Disposing...");
-    _intentDataStreamSubscription?.cancel();
-    _intentDataStreamSubscription = null;
-  }
-
-  /// Navigates to the ImportScreen via the global navigatorKey.
-  static void _openImportScreen(String filePath) {
-    print(
-      "[SharingIntentService] Attempting navigation via navigatorKey with file: $filePath",
+        await _handleIncoming(items);
+      },
+      onError: (e) => debugPrint("[SharingIntentService] stream error: $e"),
     );
-    if (_isNavigating) {
-      print('[SharingIntentService] Navigation already in progress, skipping.');
+
+    // 2) Kaltstart: App wird durch Teilen gestartet
+    ReceiveSharingIntent.instance.getInitialMedia().then((items) async {
+      debugPrint(
+        "[SharingIntentService] initial: ${items.map((f) => f.path).join(', ')}",
+      );
+      await _handleIncoming(items);
+    }).catchError((e) {
+      debugPrint("[SharingIntentService] initial error: $e");
+    });
+  }
+
+  static void dispose() {
+    debugPrint("[SharingIntentService] dispose");
+    _sub?.cancel();
+    _sub = null;
+  }
+
+  // ------------------ intern ------------------
+
+  static Future<void> _handleIncoming(List<SharedMediaFile> items) async {
+    if (items.isEmpty) {
+      debugPrint("[SharingIntentService] no items");
       return;
     }
 
-    // Basic guard: ensure we have a plausible audio file path
-    final lower = filePath.toLowerCase();
-    final isAudio =
-        lower.endsWith('.m4a') ||
-        lower.endsWith('.wav') ||
-        lower.endsWith('.aac') ||
-        lower.endsWith('.mp3') ||
-        lower.endsWith('.caf');
-    if (!isAudio) {
-      print('[SharingIntentService] Skipping: not an audio file.');
-      // We still try to open ImportScreen; many iOS share targets provide temp extensions
-      // If you want to strictly block, return here instead of continuing.
+    final SharedMediaFile picked = _pickBestAudio(items);
+    final srcPath = picked.path;
+
+    // De-Dupe: zwei Events kurz hintereinander ignorieren
+    final now = DateTime.now();
+    if (_lastHandledPath == srcPath &&
+        now.difference(_lastHandledAt) < _dedupeWindow) {
+      debugPrint("[SharingIntentService] deduped: $srcPath");
+      return;
     }
 
-    void pushImport() {
+    // Datei existiert?
+    final src = File(srcPath);
+    if (!await src.exists()) {
+      debugPrint("[SharingIntentService] src missing: $srcPath");
+      // Wir versuchen trotzdem zu öffnen, aber das wird im Screen dann scheitern.
+      // Besser: früh raus.
+      return;
+    }
+
+    // Sofort in App-Storage sichern, Temp-Verzeichnis der Extension ist flüchtig
+    final safePath = await _persistToAppStorage(srcPath);
+
+    // De-Dupe-Status aktualisieren
+    _lastHandledPath = srcPath;
+    _lastHandledAt = now;
+
+    await _openImportScreen(safePath);
+  }
+
+  static SharedMediaFile _pickBestAudio(List<SharedMediaFile> items) {
+    SharedMediaFile? preferred;
+    for (final f in items) {
+      final lower = f.path.toLowerCase();
+      if (lower.endsWith('.m4a') ||
+          lower.endsWith('.wav') ||
+          lower.endsWith('.aac') ||
+          lower.endsWith('.mp3') ||
+          lower.endsWith('.caf')) {
+        preferred = f;
+        break;
+      }
+    }
+    return preferred ?? items.first;
+  }
+
+  static Future<String> _persistToAppStorage(String srcPath) async {
+    try {
+      final src = File(srcPath);
+      final docs = await getApplicationDocumentsDirectory();
+      final basename = p.basename(srcPath);
+      // Eindeutiger Dateiname, um Überschreiben zu vermeiden
+      final uniqueName =
+          "${DateTime.now().millisecondsSinceEpoch}_${basename.replaceAll(' ', '_')}";
+      final dest = File(p.join(docs.path, uniqueName));
+      final copied = await src.copy(dest.path);
+      debugPrint(
+          "[SharingIntentService] copied to ${copied.path} (${await copied.length()} bytes)");
+      return copied.path;
+    } catch (e) {
+      debugPrint("[SharingIntentService] copy failed: $e");
+      // Fallback: nutze Originalpfad
+      return srcPath;
+    }
+  }
+
+  static Future<void> _openImportScreen(String filePath) async {
+    debugPrint("[SharingIntentService] open ImportScreen: $filePath");
+
+    if (_isNavigating) {
+      debugPrint("[SharingIntentService] navigation busy, skip");
+      return;
+    }
+
+    Future<void> push() async {
       final nav = navigatorKey.currentState;
       if (nav == null) {
-        print('[SharingIntentService] NavigatorState still null at pushImport');
+        debugPrint("[SharingIntentService] NavigatorState null");
         return;
       }
       _isNavigating = true;
-      nav
-          .push(
-            MaterialPageRoute(
-              builder: (context) => ShareImportScreen(filePath: filePath),
-            ),
-          )
-          .then((_) => _isNavigating = false);
-      print('[SharingIntentService] Navigation to ImportScreen triggered.');
+      await nav.push(
+        MaterialPageRoute(
+          builder: (_) => ShareImportScreen(filePath: filePath),
+          fullscreenDialog: true,
+        ),
+      );
+      _isNavigating = false;
     }
 
-    // If navigator is not ready yet (cold start on iOS), delay until next frame
+    // Falls der Navigator noch nicht bereit ist (Kaltstart)
     if (navigatorKey.currentState == null) {
-      print('[SharingIntentService] Navigator not ready, delaying push...');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // small delay to ensure MaterialApp is mounted
-        Future.delayed(const Duration(milliseconds: 300), () {
+      debugPrint("[SharingIntentService] wait for navigator...");
+      // auf nächsten Frame warten
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // kurze Pufferzeit
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (navigatorKey.currentState != null) {
+          await push();
+        } else {
+          // letzter Versuch
+          await Future.delayed(const Duration(milliseconds: 700));
           if (navigatorKey.currentState != null) {
-            pushImport();
+            await push();
           } else {
-            // last resort: schedule once more
-            Future.delayed(const Duration(milliseconds: 700), () {
-              if (navigatorKey.currentState != null) {
-                pushImport();
-              } else {
-                print(
-                  '[SharingIntentService] Failed to acquire Navigator after delays.',
-                );
-              }
-            });
+            debugPrint("[SharingIntentService] navigator still null");
           }
-        });
+        }
       });
       return;
     }
 
-    // Navigator ready now
-    pushImport();
+    await push();
   }
 }

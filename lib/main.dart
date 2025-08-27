@@ -13,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:ui';
 import 'screens/import_screen.dart';
-import 'package:prophetie_app/widgets/blurred_dialog.dart';
 import 'package:prophetie_app/widgets/styled_card.dart';
 import 'package:provider/provider.dart';
 import 'package:prophetie_app/providers/prophetie_provider.dart';
@@ -60,7 +59,7 @@ Future<void> main() async {
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown, // Optional, meist reicht portraitUp
+    DeviceOrientation.portraitDown,
   ]);
 
   await Firebase.initializeApp();
@@ -74,7 +73,6 @@ Future<void> main() async {
 
   // Initialize PremiumProvider and RevenueCat listener
   final premiumProvider = PremiumProvider();
-  // Keep PremiumProvider in sync with any entitlement changes from PurchaseService
   PurchaseService().onPremiumChanged = (isPremium) {
     premiumProvider.setPremium(isPremium);
   };
@@ -99,12 +97,17 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => TraumProvider()),
         ChangeNotifierProvider.value(value: premiumProvider),
       ],
-      child: MyApp(),
+      child: const MyApp(),
     ),
   );
+
+  // SharingIntent NACH runApp initialisieren
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    SharingIntentService.init();
+  });
 }
 
-/// Widget to guard subscription state: shows PhonePlusScreen if no active plan
+/// Widget to guard subscription state
 class SubscriptionGate extends StatefulWidget {
   final Widget child;
   const SubscriptionGate({super.key, required this.child});
@@ -141,9 +144,8 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     if (data != null && data.containsKey('plan')) {
       final expiresAt = data['expiresAt'] as int?;
       if (expiresAt != null &&
-          DateTime.fromMillisecondsSinceEpoch(
-            expiresAt,
-          ).isAfter(DateTime.now())) {
+          DateTime.fromMillisecondsSinceEpoch(expiresAt)
+              .isAfter(DateTime.now())) {
         setState(() {
           _checking = false;
           _hasAccess = true;
@@ -163,10 +165,8 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     const sandboxUrl = 'https://sandbox.itunes.apple.com/verifyReceipt';
     final payload = json.encode({
       'receipt-data': receiptData,
-      'password':
-          dotenv.env['SHARED_SECRET'], // or import your shared secret constant
+      'password': dotenv.env['SHARED_SECRET'],
     });
-    // First try production
     final prodRes = await http.post(
       Uri.parse(productionUrl),
       headers: {'Content-Type': 'application/json'},
@@ -174,7 +174,6 @@ class _SubscriptionGateState extends State<SubscriptionGate> {
     );
     final prodJson = json.decode(prodRes.body) as Map<String, dynamic>;
     if (prodJson['status'] == 0) return prodJson;
-    // Fallback to sandbox
     final sandboxRes = await http.post(
       Uri.parse(sandboxUrl),
       headers: {'Content-Type': 'application/json'},
@@ -240,7 +239,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    SharingIntentService.init(context);
     _loadThemeMode();
     _handleInitialDeepLink();
     _linkSub = linkStream.listen((String? link) {
@@ -272,7 +270,6 @@ class _MyAppState extends State<MyApp> {
           _themeMode = ThemeMode.system;
       }
     });
-    // Ensure the themeNotifier reflects the loaded preference
     themeNotifier.value = _themeMode;
   }
 
@@ -291,7 +288,7 @@ class _MyAppState extends State<MyApp> {
       final type = uri.queryParameters['type'];
       final id = uri.queryParameters['id'];
       final creator = uri.queryParameters['creator'];
-      Navigator.of(navigatorKey.currentContext!).push(
+      navigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (_) => ImportScreen(type: type, id: id, creator: creator),
         ),
@@ -324,8 +321,8 @@ class _MyAppState extends State<MyApp> {
                 useMaterial3: true,
                 brightness: Brightness.light,
                 scaffoldBackgroundColor: const Color(0xFFF3F2F8),
-                primaryColor: Color(0xFFFF2D55),
-                textSelectionTheme: TextSelectionThemeData(
+                primaryColor: const Color(0xFFFF2D55),
+                textSelectionTheme: const TextSelectionThemeData(
                   cursorColor: Color(0xFFFF2D55),
                 ),
                 cardColor: Colors.white,
@@ -360,19 +357,18 @@ class _MyAppState extends State<MyApp> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   backgroundColor: Colors.white,
-                  titleTextStyle: TextStyle(
+                  titleTextStyle: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.black,
                   ),
-                  contentTextStyle: TextStyle(
+                  contentTextStyle: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
                     color: Colors.black87,
                   ),
                 ),
-                sliderTheme: SliderThemeData(),
                 progressIndicatorTheme: const ProgressIndicatorThemeData(
                   color: Color(0xFFFF2D55),
                 ),
@@ -403,8 +399,8 @@ class _MyAppState extends State<MyApp> {
                 useMaterial3: true,
                 brightness: Brightness.dark,
                 scaffoldBackgroundColor: Colors.black,
-                primaryColor: Color(0xFFFF2D55),
-                textSelectionTheme: TextSelectionThemeData(
+                primaryColor: const Color(0xFFFF2D55),
+                textSelectionTheme: const TextSelectionThemeData(
                   cursorColor: Color(0xFFFF2D55),
                 ),
                 cardColor: const Color(0xFF1C1C1E),
@@ -450,7 +446,6 @@ class _MyAppState extends State<MyApp> {
                     color: Colors.white70,
                   ),
                 ),
-                sliderTheme: SliderThemeData(),
                 progressIndicatorTheme: const ProgressIndicatorThemeData(
                   color: Color(0xFFFF2D55),
                 ),

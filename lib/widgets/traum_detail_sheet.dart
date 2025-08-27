@@ -639,13 +639,7 @@ class _TraumDetailSheetState extends State<TraumDetailSheet> {
                         data['verses'] ?? 'Noch keine Bibelstellen verfügbar.',
                       ),
                     ),
-                    _Section(
-                      title: '🔗 Verwandte Themen',
-                      child: _renderField(
-                        data['relatedTopics'] ??
-                            'Noch keine verwandten Themen verfügbar.',
-                      ),
-                    ),
+
                     _Section(
                       title: '🎧 Transkript',
                       child: _TranscriptSection(
@@ -669,7 +663,6 @@ class _TraumDetailSheetState extends State<TraumDetailSheet> {
                           storiesExamplesCitations:
                               data['storiesExamplesCitations'] as String?,
                           actionItems: data['actionItems'] as String?,
-                          relatedTopics: data['relatedTopics'] as String?,
                           transcript: data['transcript'] as String?,
                         ),
                       ),

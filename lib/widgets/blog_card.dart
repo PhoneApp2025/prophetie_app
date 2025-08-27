@@ -73,6 +73,7 @@ class _BlogCardState extends State<BlogCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bool isPhone = MediaQuery.of(context).size.width < 600;
 
     // Größen/Style
     final bool featured = widget.isFeatured;
@@ -246,9 +247,10 @@ class _BlogCardState extends State<BlogCard> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: isPhone ? 12 : theme.textTheme.bodySmall?.fontSize,
                                 color: theme.textTheme.bodySmall?.color
                                     ?.withOpacity(0.75),
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),

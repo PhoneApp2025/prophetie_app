@@ -364,138 +364,146 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
+            return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
                 left: 20,
                 right: 20,
-                top: 20,
+                top: 0,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 5,
-                    margin: const EdgeInsets.only(bottom: 15),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const Text(
-                    "Neue Prophetie eingeben",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    maxLines: 10,
-                    decoration: InputDecoration(
-                      hintText: "Gib hier deine Prophetie ein...",
-                      hintStyle: TextStyle(color: Theme.of(context).hintColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: EdgeInsets.all(16),
-                    ),
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _creatorNameController,
-                    decoration: InputDecoration(
-                      hintText: "Von wem stammt diese Prophetie?",
-                      hintStyle: TextStyle(color: Theme.of(context).hintColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: EdgeInsets.all(16),
-                    ),
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      padding: EdgeInsets.symmetric(
-                        vertical: 9,
-                        horizontal: 24,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  // Titel wie im Labels-/Träume-Sheet
+                  Padding(
+                    padding: const EdgeInsets.only(top: 0, bottom: 4),
+                    child: Center(
+                      child: Text(
+                        "Neue Prophetie eingeben",
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
-                    onPressed: () async {
-                      if (isProcessing) return;
-                      final enteredText = controller.text.trim();
-                      // Count words (non-empty segments)
-                      final wordCount = enteredText
-                          .split(RegExp(r'\s+'))
-                          .where((w) => w.isNotEmpty)
-                          .length;
-                      if (wordCount < 25) {
-                        setModalState(() => isProcessing = false);
-                        showFlushbar(
-                          'Bitte mindestens 25 Wörter eingeben (aktuell $wordCount).',
-                        );
-                        return;
-                      }
-                      setModalState(() => isProcessing = true);
-                      final newId = const Uuid().v4();
-                      // Set processing false and then pop sheet
-                      setModalState(() => isProcessing = false);
-                      Navigator.of(ctx).pop();
-                      await Provider.of<ProphetieProvider>(
-                        context,
-                        listen: false,
-                      ).handleNewProphetie(
-                        id: newId,
-                        localFilePath: null,
-                        transcriptText: enteredText,
-                        labels: [],
-                        creatorName: _creatorNameController.text.trim(),
-                      );
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.check, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text(
-                          "Fertig",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Multiline Textfeld – identische Optik wie Träume (ohne Icon links)
+                  SizedBox(
+                    child: TextField(
+                      controller: controller,
+                      maxLines: 8,
+                      decoration: InputDecoration(
+                        hintText: "Gib hier deine Prophetie ein...",
+                        hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                        isDense: true,
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[850]
+                            : Colors.grey[200],
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
-                      ],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
+                  const SizedBox(height: 10),
+
+                  // Creator-Name – 40px hoch, identisch
+                  SizedBox(
+                    height: 40,
+                    child: TextField(
+                      controller: _creatorNameController,
+                      decoration: InputDecoration(
+                        hintText: "Von wem stammt diese Prophetie?",
+                        hintStyle: TextStyle(color: Theme.of(context).hintColor),
+                        prefixIcon: const Icon(Icons.person_outline, size: 18),
+                        isDense: true,
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[850]
+                            : Colors.grey[200],
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Primärer Action-Button – Brand FF2C55, Radius 12
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF2C55),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (isProcessing) return;
+                        final enteredText = controller.text.trim();
+                        final wordCount = enteredText
+                            .split(RegExp(r'\s+'))
+                            .where((w) => w.isNotEmpty)
+                            .length;
+                        if (wordCount < 25) {
+                          setModalState(() => isProcessing = false);
+                          showFlushbar(
+                            'Bitte mindestens 25 Wörter eingeben (aktuell $wordCount).',
+                          );
+                          return;
+                        }
+                        setModalState(() => isProcessing = true);
+                        final newId = const Uuid().v4();
+                        setModalState(() => isProcessing = false);
+                        Navigator.of(ctx).pop();
+                        await Provider.of<ProphetieProvider>(
+                          context,
+                          listen: false,
+                        ).handleNewProphetie(
+                          id: newId,
+                          localFilePath: null,
+                          transcriptText: enteredText,
+                          labels: [],
+                          creatorName: _creatorNameController.text.trim(),
+                        );
+                      },
+                      child: const Text(
+                        "Fertig",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                 ],
               ),
             );
@@ -1438,7 +1446,6 @@ extension ProphetienCopyWith on Prophetie {
     String? title,
     String? storiesExamplesCitations,
     String? actionItems,
-    String? relatedTopics,
     String? transcript,
   }) {
     return Prophetie(
@@ -1457,7 +1464,6 @@ extension ProphetienCopyWith on Prophetie {
       storiesExamplesCitations:
           storiesExamplesCitations ?? this.storiesExamplesCitations,
       actionItems: actionItems ?? this.actionItems,
-      relatedTopics: relatedTopics ?? this.relatedTopics,
       transcript: transcript ?? this.transcript,
     );
   }

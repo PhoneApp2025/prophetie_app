@@ -73,7 +73,7 @@ class PhoneHeader extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              '15.000+ glückliche Nutzer',
+              'von Gemeinden benutzt',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
@@ -226,8 +226,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                                     const SizedBox(height: 26),
                                     Text(
                                       page['title'] ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 24,
+                                      style: TextStyle(
+                                        fontSize: MediaQuery.of(context).size.width > 600 ? 30 : 24,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),

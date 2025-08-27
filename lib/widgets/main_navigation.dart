@@ -164,7 +164,7 @@ class _MainNavigationState extends State<MainNavigation>
     super.initState();
     // Labels beim Start laden
     handleInitialLink(); // Für zukünftigen Firebase Import
-    SharingIntentService.init(context);
+    SharingIntentService.init(); // ✅ ohne context
   }
 
   void handleInitialLink() async {

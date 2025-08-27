@@ -113,30 +113,96 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
   }
 }
 
-/// Holt Embeddings per Qwen AI
+/// Holt Embeddings per Qwen AI (robust mit Retry & Timeout)
 Future<List<List<double>>?> fetchQwenEmbeddings(List<String> texts) async {
-  final response = await http.post(
-    Uri.parse(
-      'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/embeddings',
-    ),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${dotenv.env['QWEN_API_KEY']}',
-    },
-    body: jsonEncode({'model': 'text-embedding-v3', 'input': texts}),
-  );
-  if (response.statusCode != 200) {
+  final apiKey = dotenv.env['QWEN_API_KEY'];
+  if (apiKey == null || apiKey.trim().isEmpty) {
     // ignore: avoid_print
-    print(
-      'Qwen Embeddings Error (status ${response.statusCode}): ${response.body}',
-    );
+    print('Qwen Embeddings Error: QWEN_API_KEY fehlt.');
     return null;
   }
-  final data = jsonDecode(response.body);
-  return (data['data'] as List).map<List<double>>((e) {
-    final list = e['embedding'] as List;
-    return list.map((v) => (v as num).toDouble()).toList();
-  }).toList();
+
+  // defensiv: Texte normalisieren & kürzen (API kann bei sehr langen Inputs 5xx/400 werfen)
+  List<String> _prepare(List<String> xs) => xs
+      .map((s) => s.replaceAll(RegExp(r'\s+'), ' ').trim())
+      .map((s) => s.length > 4000 ? s.substring(0, 4000) : s)
+      .toList();
+
+  final payload = {
+    'model': 'text-embedding-v3',
+    'input': _prepare(texts),
+  };
+
+  const maxAttempts = 4;
+  Duration backoff(int attempt) => Duration(milliseconds: 300 * (1 << attempt));
+
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/embeddings',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $apiKey',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['data'];
+        if (list is List) {
+          try {
+            return list.map<List<double>>((e) {
+              final emb = e['embedding'] as List;
+              return emb.map((v) => (v as num).toDouble()).toList();
+            }).toList();
+          } catch (e) {
+            // ignore: avoid_print
+            print('Qwen Embeddings Parse Error: $e');
+            return null;
+          }
+        } else {
+          // ignore: avoid_print
+          print('Qwen Embeddings Error: Unerwartete Antwortstruktur.');
+          return null;
+        }
+      }
+
+      // 429/5xx sowie Qwen "InternalError" (kommt fieserweise oft als 400) -> Retry mit Backoff
+      final body = response.body;
+      final retryable = response.statusCode == 429 ||
+          response.statusCode >= 500 ||
+          (response.statusCode == 400 && body.contains('Internal server error'));
+
+      // ignore: avoid_print
+      print(
+          'Qwen Embeddings Error (status ${response.statusCode}): ${response.body} | attempt=${attempt + 1}/$maxAttempts');
+
+      if (!retryable || attempt == maxAttempts - 1) {
+        return null;
+      }
+
+      await Future.delayed(backoff(attempt));
+    } catch (e) {
+      // Netzwerk/Timeout -> retry bis maxAttempts
+      // ignore: avoid_print
+      print('Qwen Embeddings Transport Error: $e | attempt=${attempt + 1}/$maxAttempts');
+      if (attempt == maxAttempts - 1) return null;
+      await Future.delayed(backoff(attempt));
+    }
+  }
+
+  return null;
+}
+// Kürzt und säubert Texte für Embeddings, um API-Fehler durch Überlänge/Noise zu vermeiden
+String _cleanForEmbedding(String s) {
+  final trimmed = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  // Qwen kommt mit sehr langen Strings teils ins Straucheln; hart auf ~4000 Zeichen begrenzen
+  return trimmed.length > 4000 ? trimmed.substring(0, 4000) : trimmed;
 }
 
 /// Kosinus-Ähnlichkeit
@@ -359,7 +425,7 @@ class ConnectionService {
   static List<ConnectionPair> _computePairsFromEmbeddings(
     List<ConnectionItem> all,
     Map<String, List<double>> embeddings, {
-    double threshold = 0.7,
+    double threshold = 0.68,
   }) {
     final byKey = {for (final it in all) _keyOf(it): it};
     final results = <MapEntry<ConnectionPair, double>>[];
@@ -448,15 +514,19 @@ class ConnectionService {
     String collOf(ConnectionItem it) =>
         it.type == ItemType.dream ? 'traeume' : 'prophetien';
 
-    const batchSize = 64;
+    const batchSize = 16;
     for (var i = 0; i < missing.length; i += batchSize) {
       final slice = missing.sublist(
         i,
         i + batchSize > missing.length ? missing.length : i + batchSize,
       );
-      final texts = slice.map((e) => e.text).toList();
+      final texts = slice.map((e) => _cleanForEmbedding(e.text)).toList();
       final vecs = await fetchQwenEmbeddings(texts);
-      if (vecs == null) continue;
+      if (vecs == null || vecs.length != slice.length) {
+        // ignore: avoid_print
+        print('Qwen Embeddings Warn: Vecs null oder Längen-Mismatch (got ${vecs?.length}, expected ${slice.length}). Überspringe diesen Batch.');
+        continue;
+      }
 
       final batch = FirebaseFirestore.instance.batch();
       for (var k = 0; k < slice.length; k++) {
@@ -498,7 +568,9 @@ class ConnectionService {
       return 0;
     }
 
-final embeddings = await _ensureEmbeddings(uid, all, force: true);    final pairs = _computePairsFromEmbeddings(
+    // Vollständiger Rebuild: erzeugt absichtlich alle Embeddings neu (kann Rate Limits triggern)
+    final embeddings = await _ensureEmbeddings(uid, all, force: true);
+    final pairs = _computePairsFromEmbeddings(
       all,
       embeddings,
       threshold: threshold,
@@ -610,7 +682,7 @@ final embeddings = await _ensureEmbeddings(uid, all, force: true);    final pair
     final newItems =
         all.where((it) => !connectedKeys.contains(_keyOf(it))).toList();
 
-final embeddings = await _ensureEmbeddings(uid, all, force: true);
+    final embeddings = await _ensureEmbeddings(uid, all, force: false);
 
     final byKey = {for (final it in all) _keyOf(it): it};
     final scored = <MapEntry<ConnectionPair, double>>[];
@@ -625,7 +697,7 @@ final embeddings = await _ensureEmbeddings(uid, all, force: true);
         if (eb == null) continue;
 
         final sim = _cosineSimilarity(ea, eb).clamp(-1.0, 1.0);
-        if (sim > 0.7) {
+        if (sim > 0.68) {
           final pct = ((sim * 100).clamp(0, 100)).round().toString();
           scored.add(
             MapEntry(

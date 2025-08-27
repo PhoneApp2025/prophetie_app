@@ -13,7 +13,6 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:prophetie_app/main.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:prophetie_app/widgets/blurred_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.initialSection});
@@ -668,64 +667,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           await showDialog<bool>(
                             context: context,
                             barrierColor: Colors.black.withOpacity(0.05),
-                            builder: (context) => BlurredDialog(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Passwort ändern',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Passwort ändern'),
+                              content: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextField(
+                                      controller: currentController,
+                                      obscureText: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Aktuelles Passwort',
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  TextField(
-                                    controller: currentController,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Aktuelles Passwort',
+                                    TextField(
+                                      controller: newController,
+                                      obscureText: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Neues Passwort',
+                                      ),
                                     ),
-                                  ),
-                                  TextField(
-                                    controller: newController,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Neues Passwort',
+                                    TextField(
+                                      controller: confirmController,
+                                      obscureText: true,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Neues Passwort bestätigen',
+                                      ),
                                     ),
-                                  ),
-                                  TextField(
-                                    controller: confirmController,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Neues Passwort bestätigen',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Abbrechen'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          child: const Text('Ändern'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Abbrechen'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: const Text('Ändern'),
+                                ),
+                              ],
                             ),
                           ) ??
                           false;
@@ -1039,6 +1021,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () async {
                       await launchUrlString(
                         'https://www.notion.so/Datenschutz-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
+                        mode: LaunchMode.inAppWebView,
+                      );
+                    },
+                  ),
+                                    Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    thickness: 1.5,
+                    color: Theme.of(context).dividerColor.withOpacity(0.15),
+                  ),
+                     ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                    title: Text(
+                      'Nutzungsbedingungen',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            Theme.of(context).textTheme.bodyLarge?.color ??
+                            Colors.black,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Theme.of(context).iconTheme.color,
+                    ),
+                    onTap: () async {
+                      await launchUrlString(
+                        'https://www.notion.so/Nutzungsbedingungen-222017fc7cf7800d9b1bddd0c8168cd5?source=copy_link',
                         mode: LaunchMode.inAppWebView,
                       );
                     },

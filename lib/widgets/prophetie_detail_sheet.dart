@@ -310,13 +310,7 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                                   'Noch keine Bibelstellen verfügbar.',
                             ),
                           ),
-                          _Section(
-                            title: '🔗 Verwandte Themen',
-                            child: _renderField(
-                              data['relatedTopics'] ??
-                                  'Noch keine verwandten Themen verfügbar.',
-                            ),
-                          ),
+
                           _Section(
                             title: '🎧 Transkript',
                             child: _TranscriptSection(
@@ -342,7 +336,6 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                                 storiesExamplesCitations:
                                     data['storiesExamplesCitations'] as String?,
                                 actionItems: data['actionItems'] as String?,
-                                relatedTopics: data['relatedTopics'] as String?,
                                 transcript: data['transcript'] as String?,
                               ),
                             ),

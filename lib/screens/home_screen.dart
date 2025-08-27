@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -253,9 +254,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       }
                       final items = snap.data!.take(4).toList();
-                      final double _screenW = MediaQuery.of(ctx).size.width;
-                      final double cardHeight =
-                          _screenW * 0.44; // ~44% der Breite
+                      final size = MediaQuery.of(ctx).size;
+                      final double _screenW = size.width;
+                      final bool _isTablet = _screenW > 600;
+                      final double maxByWidth = _isTablet ? _screenW * 0.28 : _screenW * 0.44; // iPad flacher
+                      final double maxByHeight = size.height * (_isTablet ? 0.22 : 0.34); // nicht zu hoch relativ zur Höhe
+                      final double cardHeight = _isTablet
+                          ? math.min(180, math.min(maxByWidth, maxByHeight))
+                          : math.min(300, math.min(maxByWidth, maxByHeight));
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15.0),

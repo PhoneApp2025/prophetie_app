@@ -36,7 +36,6 @@ Future<Map<String, dynamic>?> analyzeTraumContentWithQwenAI(
         'Falls vorhanden: schreibe Datum und Kontext dazu',
       ],
       'scriptureReferences': [],
-      'relatedTopics': [],
       'transcript': transcript,
     };
   }
@@ -55,12 +54,11 @@ Gib ausschließlich ein valides JSON-Objekt mit folgendem Aufbau zurück. **Jede
 {
   "title": "Titel des Traums (maximal 4 Wörter, verwende NICHT das Wort 'Traum')",
   "mainPoints": ["Punkt 1", "Punkt 2", "..."],
-  "summary": "Kurzfassung (max. 4 Sätze)",
+  "summary": "Kurzfassung (max. 6 Sätze)",
   "storiesExamplesCitations": ["Kurze biblische Erzählung 1", "Kurze biblische Erzählung 2"],
   "followUpQuestions": ["Frage 1", "Frage 2"],
   "actionItems": ["Schritt 1", "Schritt 2"],
   "scriptureReferences": ["Buch Kapitel:Vers", "..."],
-  "relatedTopics": ["Thema 1", "Thema 2"],
   "transcript": "$transcript"
 }
 
@@ -109,7 +107,7 @@ Ziel: Aus jedem Transkript einen hilfreichen, persönlichen, anwendbaren Analyse
               ],
             }),
           )
-          .timeout(Duration(seconds: 30));
+          .timeout(Duration(seconds: 120));
       break;
     } catch (e) {
       if (attempt == 3) rethrow;
@@ -138,7 +136,6 @@ Ziel: Aus jedem Transkript einen hilfreichen, persönlichen, anwendbaren Analyse
         'Zwischendurch wesentliche Punkte notieren',
       ],
       'scriptureReferences': [],
-      'relatedTopics': [],
       'transcript': transcript,
     };
   }
@@ -182,7 +179,6 @@ Future<void> updateTraumAnalysisInFirestore(
           'questions': _asString(ai['followUpQuestions']),
           'actionItems': _asString(ai['actionItems']),
           'verses': _asString(ai['scriptureReferences']),
-          'relatedTopics': _asString(ai['relatedTopics']),
           'isAnalyzed': true,
         }, SetOptions(merge: true));
   } catch (e) {

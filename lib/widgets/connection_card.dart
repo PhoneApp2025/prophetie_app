@@ -31,6 +31,7 @@ class ConnectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext ctx) {
+    final bool _isTablet = MediaQuery.of(ctx).size.width > 600;
     final a = pair.first;
     final b = pair.second;
     final sim = pair.similarity;
@@ -61,7 +62,7 @@ class ConnectionCard extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: EdgeInsets.fromLTRB(16, _isTablet ? 10 : 12, 16, _isTablet ? 10 : 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,7 +71,7 @@ class ConnectionCard extends StatelessWidget {
 
             // Content row: A — connector — B
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: _EntryTile(item: a, onTap: () => _openDetail(ctx, a)),
@@ -157,6 +158,7 @@ class _EntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool _isTablet = MediaQuery.of(context).size.width > 600;
     final icon = item.type == ItemType.dream
         ? Icons.nights_stay_outlined
         : Icons.campaign_outlined;
@@ -165,9 +167,11 @@ class _EntryTile extends StatelessWidget {
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w600,
       letterSpacing: 0.1,
+      fontSize: _isTablet ? 18 : theme.textTheme.titleMedium?.fontSize,
     );
     final dateStyle = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.onSurface.withOpacity(0.6),
+      fontSize: _isTablet ? 13 : theme.textTheme.labelMedium?.fontSize,
     );
 
     final content = Column(
@@ -185,7 +189,7 @@ class _EntryTile extends StatelessWidget {
                 : ConnectionCard.brandAccent,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: _isTablet ? 10 : 8),
         Text(
           item.title,
           maxLines: 2,
@@ -193,7 +197,7 @@ class _EntryTile extends StatelessWidget {
           style: titleStyle,
           textAlign: alignEnd ? TextAlign.right : TextAlign.left,
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: _isTablet ? 8 : 6),
         Text(
           DateFormat.yMMMd().format(item.timestamp),
           style: dateStyle,
@@ -227,29 +231,33 @@ class _MatchConnector extends StatelessWidget {
   Widget build(BuildContext context) {
     final dividerColor = Theme.of(context).dividerColor.withOpacity(0.6);
     final accent = ConnectionCard.brandAccent;
+    final bool _isTablet = MediaQuery.of(context).size.width > 600;
 
     // Fallback: kein Similarity-Wert → klassischer Link-Connector
     if (sim == null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: SizedBox(
-          width: 56,
-          height: 84,
+          width: _isTablet ? 64 : 56,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: Container(
-                  width: 2,
-                  decoration: BoxDecoration(
-                    color: dividerColor,
-                    borderRadius: BorderRadius.circular(2),
+              SizedBox(
+                height: _isTablet ? 8 : 8,
+                child: Center(
+                  child: Container(
+                    width: 2,
+                    decoration: BoxDecoration(
+                      color: dividerColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
               ),
               Container(
-                width: 28,
-                height: 28,
+                width: _isTablet ? 32 : 28,
+                height: _isTablet ? 32 : 28,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
                   shape: BoxShape.circle,
@@ -264,12 +272,15 @@ class _MatchConnector extends StatelessWidget {
                 ),
                 child: const Icon(Icons.link, size: 16),
               ),
-              Expanded(
-                child: Container(
-                  width: 2,
-                  decoration: BoxDecoration(
-                    color: dividerColor,
-                    borderRadius: BorderRadius.circular(2),
+              SizedBox(
+                height: _isTablet ? 8 : 8,
+                child: Center(
+                  child: Container(
+                    width: 2,
+                    decoration: BoxDecoration(
+                      color: dividerColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
               ),
@@ -284,18 +295,18 @@ class _MatchConnector extends StatelessWidget {
     final pct = (clamped * 100).round();
     final value = pct / 100.0;
 
-    const double ringSize = 68; // previously 56
-    const double stroke = 5;    // previously 4
+    final double ringSize = _isTablet ? 64 : 68; // iPad etwas flacher
+    final double stroke = _isTablet ? 5 : 5;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: SizedBox(
-        width: 88,
-        height: 128,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: _isTablet ? 8 : 8,
+            child: Center(
               child: Container(
                 width: 2,
                 decoration: BoxDecoration(
@@ -304,55 +315,61 @@ class _MatchConnector extends StatelessWidget {
                 ),
               ),
             ),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                // Track circle
-                CustomPaint(
-                  size: const Size(ringSize, ringSize),
-                  painter: _ArcPainter(
-                    value: 1.0,
-                    color: dividerColor.withOpacity(0.22),
-                    strokeWidth: stroke,
-                    rounded: true,
-                    asTrack: true,
+          ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Track circle
+              CustomPaint(
+                size: Size(ringSize, ringSize),
+                painter: _ArcPainter(
+                  value: 1.0,
+                  color: dividerColor.withOpacity(0.22),
+                  strokeWidth: stroke,
+                  rounded: true,
+                  asTrack: true,
+                ),
+              ),
+              // Progress arc
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: value),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutCubic,
+                builder: (context, v, _) {
+                  return CustomPaint(
+                    size: Size(ringSize, ringSize),
+                    painter: _ArcPainter(
+                      value: v,
+                      color: accent,
+                      strokeWidth: stroke,
+                      rounded: true,
+                    ),
+                  );
+                },
+              ),
+              // Center content
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$pct%',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: _isTablet ? 16 : 14),
                   ),
-                ),
-                // Progress arc
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: value),
-                  duration: const Duration(milliseconds: 600),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, v, _) {
-                    return CustomPaint(
-                      size: const Size(ringSize, ringSize),
-                      painter: _ArcPainter(
-                        value: v,
-                        color: accent,
-                        strokeWidth: stroke,
-                        rounded: true,
-                      ),
-                    );
-                  },
-                ),
-                // Center content
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$pct%',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Match',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: accent),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            Expanded(
+                  const SizedBox(height: 2),
+                  Text(
+                    'Match',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: accent,
+                          fontSize: _isTablet ? 12 : Theme.of(context).textTheme.labelSmall?.fontSize,
+                        ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(
+            height: _isTablet ? 8 : 8,
+            child: Center(
               child: Container(
                 width: 2,
                 decoration: BoxDecoration(
@@ -361,8 +378,8 @@ class _MatchConnector extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -426,8 +443,9 @@ class _TypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = color.withOpacity(0.10);
     final border = color.withOpacity(0.25);
+    final bool _isTablet = MediaQuery.of(context).size.width > 600;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: _isTablet ? 12 : 10, vertical: _isTablet ? 6 : 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
@@ -436,7 +454,7 @@ class _TypeChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
+          Icon(icon, size: _isTablet ? 14 : 12, color: color),
           const SizedBox(width: 6),
           Text(
             label,
@@ -444,6 +462,7 @@ class _TypeChip extends StatelessWidget {
                   color: color,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
+                  fontSize: _isTablet ? 12 : Theme.of(context).textTheme.labelSmall?.fontSize,
                 ),
           ),
         ],

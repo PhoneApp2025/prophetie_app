@@ -357,33 +357,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              // QR/Share-Button rechts
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    // TODO: Profil-QR teilen/anzeigen
-                                  },
-                                  customBorder: const CircleBorder(),
-                                  child: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? Colors.white.withOpacity(0.06)
-                                          : Colors.black.withOpacity(0.06),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      Icons.qr_code_2,
-                                      color: Theme.of(context).iconTheme.color,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              // QR-Code Button entfernt (bewusst deaktiviert)
                             ],
                           ),
                         ),

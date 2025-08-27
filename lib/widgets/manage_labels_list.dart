@@ -16,6 +16,7 @@ class ManageLabelsList extends StatefulWidget {
   final void Function(String) onDelete;
   final void Function(String) onAddLabel;
   final bool showTitle;
+  final ScrollController? scrollController;
 
   const ManageLabelsList({
     Key? key,
@@ -25,6 +26,7 @@ class ManageLabelsList extends StatefulWidget {
     required this.onDelete,
     required this.onAddLabel,
     this.showTitle = false,
+    this.scrollController,
   }) : super(key: key);
 
   @override
@@ -34,6 +36,7 @@ class ManageLabelsList extends StatefulWidget {
 class _ManageLabelsListState extends State<ManageLabelsList> {
   final TextEditingController _addLabelController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  late final ScrollController _internalScrollController = ScrollController();
   String _query = '';
   String? _editingLabel; // null = kein Inline-Edit aktiv
 
@@ -41,6 +44,7 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
   void dispose() {
     _addLabelController.dispose();
     _searchController.dispose();
+    _internalScrollController.dispose();
     super.dispose();
   }
 
@@ -181,89 +185,40 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
         const SizedBox(height: 8),
 
         // Kein Suchmodus: Reorderable List auf Basis der gefilterten Liste
-        SizedBox(
-          height: 360,
+        Flexible(
           child: Builder(
             builder: (context) {
               // Kein Suchmodus: Reorderable List auf Basis der gefilterten Liste
               final base = _filtered(
                 context,
               ); // bei leerer Suche == widget.labels
-              return ReorderableListView.builder(
-                shrinkWrap: true,
-                buildDefaultDragHandles: false,
-                itemCount: base.length,
-                onReorder: (oldIndex, newIndex) {
-                  // Mappe Reorder-Indices (aus gefilterter Sicht) auf Original-Liste
-                  final updated = [...widget.labels];
-                  final originalOld = widget.labels.indexOf(base[oldIndex]);
-                  if (newIndex > oldIndex) newIndex--;
-                  final originalNew = newIndex < base.length
-                      ? widget.labels.indexOf(base[newIndex])
-                      : widget.labels.length;
-                  final item = updated.removeAt(originalOld);
-                  updated.insert(math.min(originalNew, updated.length), item);
-                  widget.onReorder(updated);
-                  setState(() {});
-                },
-                itemBuilder: (context, index) {
-                  final label = base[index];
-                  return Dismissible(
-                    key: ValueKey('dismiss_$label'),
-                    direction: DismissDirection.endToStart,
-                    background: _SwipeBg(color: Colors.redAccent),
-                    onDismissed: (_) async {
-                      final firestore = FirebaseFirestore.instance;
-                      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-                      final dreams = await firestore
-                          .collection('users')
-                          .doc(uid)
-                          .collection('traeume')
-                          .where('labels', arrayContains: label)
-                          .get();
-                      for (final doc in dreams.docs) {
-                        await doc.reference.update({
-                          'labels': FieldValue.arrayRemove([label]),
-                        });
-                      }
-
-                      final props = await firestore
-                          .collection('users')
-                          .doc(uid)
-                          .collection('prophetien')
-                          .where('labels', arrayContains: label)
-                          .get();
-                      for (final doc in props.docs) {
-                        await doc.reference.update({
-                          'labels': FieldValue.arrayRemove([label]),
-                        });
-                      }
-
-                      widget.onDelete(label);
-                      showFlushbar(
-                        'Label wurde entfernt. Einträge wurden aktualisiert.',
-                      );
-                    },
-                    child: _LabelRow(
-                      key: ValueKey('row_$label'),
-                      label: label,
-                      isEditing: _editingLabel == label,
-                      onStartEdit: () => setState(() => _editingLabel = label),
-                      onCancelEdit: () => setState(() => _editingLabel = null),
-                      onSubmitEdit: (newValue) async {
-                        if (newValue == null ||
-                            newValue.trim().isEmpty ||
-                            newValue == label) {
-                          setState(() => _editingLabel = null);
-                          return;
-                        }
-                        if (!isLabelNameValid(newValue)) {
-                          showFlushbar(
-                            'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
-                          );
-                          return;
-                        }
+              return PrimaryScrollController(
+                controller: widget.scrollController ?? _internalScrollController,
+                child: ReorderableListView.builder(
+                  shrinkWrap: true,
+                  buildDefaultDragHandles: false,
+                  itemCount: base.length,
+                  padding: const EdgeInsets.only(bottom: 12),
+                  onReorder: (oldIndex, newIndex) {
+                    // Mappe Reorder-Indices (aus gefilterter Sicht) auf Original-Liste
+                    final updated = [...widget.labels];
+                    final originalOld = widget.labels.indexOf(base[oldIndex]);
+                    if (newIndex > oldIndex) newIndex--;
+                    final originalNew = newIndex < base.length
+                        ? widget.labels.indexOf(base[newIndex])
+                        : widget.labels.length;
+                    final item = updated.removeAt(originalOld);
+                    updated.insert(math.min(originalNew, updated.length), item);
+                    widget.onReorder(updated);
+                    setState(() {});
+                  },
+                  itemBuilder: (context, index) {
+                    final label = base[index];
+                    return Dismissible(
+                      key: ValueKey('dismiss_$label'),
+                      direction: DismissDirection.endToStart,
+                      background: _SwipeBg(color: Colors.redAccent),
+                      onDismissed: (_) async {
                         final firestore = FirebaseFirestore.instance;
                         final uid = FirebaseAuth.instance.currentUser!.uid;
 
@@ -277,9 +232,6 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
                           await doc.reference.update({
                             'labels': FieldValue.arrayRemove([label]),
                           });
-                          await doc.reference.update({
-                            'labels': FieldValue.arrayUnion([newValue]),
-                          });
                         }
 
                         final props = await firestore
@@ -292,25 +244,80 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
                           await doc.reference.update({
                             'labels': FieldValue.arrayRemove([label]),
                           });
-                          await doc.reference.update({
-                            'labels': FieldValue.arrayUnion([newValue]),
-                          });
                         }
 
-                        widget.onRename(label, newValue);
-                        setState(() => _editingLabel = null);
+                        widget.onDelete(label);
+                        showFlushbar(
+                          'Label wurde entfernt. Einträge wurden aktualisiert.',
+                        );
                       },
-                      dragHandle: ReorderableDragStartListener(
-                        index: index,
-                        child: Icon(
-                          Icons.drag_indicator,
-                          color: Colors.grey.shade500,
-                          size: 18,
+                      child: _LabelRow(
+                        key: ValueKey('row_$label'),
+                        label: label,
+                        isEditing: _editingLabel == label,
+                        onStartEdit: () => setState(() => _editingLabel = label),
+                        onCancelEdit: () => setState(() => _editingLabel = null),
+                        onSubmitEdit: (newValue) async {
+                          if (newValue == null ||
+                              newValue.trim().isEmpty ||
+                              newValue == label) {
+                            setState(() => _editingLabel = null);
+                            return;
+                          }
+                          if (!isLabelNameValid(newValue)) {
+                            showFlushbar(
+                              'Labels dürfen kein /, \\, [, ], #, \$ oder . enthalten.',
+                            );
+                            return;
+                          }
+                          final firestore = FirebaseFirestore.instance;
+                          final uid = FirebaseAuth.instance.currentUser!.uid;
+
+                          final dreams = await firestore
+                              .collection('users')
+                              .doc(uid)
+                              .collection('traeume')
+                              .where('labels', arrayContains: label)
+                              .get();
+                          for (final doc in dreams.docs) {
+                            await doc.reference.update({
+                              'labels': FieldValue.arrayRemove([label]),
+                            });
+                            await doc.reference.update({
+                              'labels': FieldValue.arrayUnion([newValue]),
+                            });
+                          }
+
+                          final props = await firestore
+                              .collection('users')
+                              .doc(uid)
+                              .collection('prophetien')
+                              .where('labels', arrayContains: label)
+                              .get();
+                          for (final doc in props.docs) {
+                            await doc.reference.update({
+                              'labels': FieldValue.arrayRemove([label]),
+                            });
+                            await doc.reference.update({
+                              'labels': FieldValue.arrayUnion([newValue]),
+                            });
+                          }
+
+                          widget.onRename(label, newValue);
+                          setState(() => _editingLabel = null);
+                        },
+                        dragHandle: ReorderableDragStartListener(
+                          index: index,
+                          child: Icon(
+                            Icons.drag_indicator,
+                            color: Colors.grey.shade500,
+                            size: 18,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),
