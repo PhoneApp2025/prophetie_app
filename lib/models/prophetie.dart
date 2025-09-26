@@ -23,6 +23,8 @@ class Prophetie {
   final ProcessingStatus status;
   final String? lastErrorMessage;
   final List<String>? matchingTopics;
+  final String? notes;
+
   bool? isTopNews;
 
   Prophetie({
@@ -46,6 +48,8 @@ class Prophetie {
     this.lastErrorMessage,
     this.matchingTopics,
     this.isTopNews,
+    this.notes,
+
   });
 
   Prophetie copyWith({
@@ -69,6 +73,8 @@ class Prophetie {
     String? lastErrorMessage,
     List<String>? matchingTopics,
     bool? isTopNews,
+    String? notes,
+
   }) {
     return Prophetie(
       id: id ?? this.id,
@@ -92,6 +98,7 @@ class Prophetie {
       lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
       matchingTopics: matchingTopics ?? this.matchingTopics,
       isTopNews: isTopNews ?? this.isTopNews,
+      notes: notes ?? this.notes,
     );
   }
 
@@ -117,6 +124,7 @@ class Prophetie {
       'lastErrorMessage': lastErrorMessage,
       'matchingTopics': matchingTopics ?? [],
       'isTopNews': this.isTopNews ?? false,
+      'notes': notes,
     };
   }
 
@@ -196,6 +204,7 @@ class Prophetie {
           ?.map((item) => item.toString())
           .toList(),
       isTopNews: json['isTopNews'] ?? false,
+      notes: parseField(json['notes']),
     );
   }
 

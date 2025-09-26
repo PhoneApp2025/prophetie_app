@@ -441,43 +441,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                     ),
                                     const Divider(height: 1),
-                                    RadioListTile<String>(
-                                      value: _resolveSystemLanguage(),
-                                      groupValue: _selectedLanguageCode,
-                                      onChanged: (v) async {
-                                        if (v == null) return;
-                                        await _saveLanguage(v);
-                                        if (mounted)
-                                          Navigator.of(context).pop();
-                                      },
-                                      title: Text(
-                                        'System (${_resolveSystemLanguage() == 'en' ? 'English' : 'Deutsch'})',
-                                      ),
-                                      subtitle: const Text(
-                                        'Automatisch nach Gerätesprache',
-                                      ),
-                                    ),
+                                    // Only German selectable for now
                                     RadioListTile<String>(
                                       value: 'de',
                                       groupValue: _selectedLanguageCode,
                                       onChanged: (v) async {
                                         if (v == null) return;
                                         await _saveLanguage(v);
-                                        if (mounted)
-                                          Navigator.of(context).pop();
+                                        if (mounted) Navigator.of(context).pop();
                                       },
                                       title: const Text('Deutsch'),
                                     ),
-                                    RadioListTile<String>(
-                                      value: 'en',
-                                      groupValue: _selectedLanguageCode,
-                                      onChanged: (v) async {
-                                        if (v == null) return;
-                                        await _saveLanguage(v);
-                                        if (mounted)
-                                          Navigator.of(context).pop();
-                                      },
+                                    // English shown but disabled (Coming soon)
+                                    ListTile(
+                                      enabled: false,
                                       title: const Text('English'),
+                                      subtitle: const Text('Coming soon'),
+                                    ),
+                                    // Placeholder for other languages
+                                    ListTile(
+                                      enabled: false,
+                                      title: const Text('Weitere Sprachen'),
+                                      subtitle: const Text('Coming soon'),
                                     ),
                                     const SizedBox(height: 12),
                                   ],
@@ -1020,7 +1005,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     onTap: () async {
                       await launchUrlString(
-                        'https://www.notion.so/Datenschutz-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
+                        'https://www.notion.so/Terms-of-Use-Privacy-Notice-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
                         mode: LaunchMode.inAppWebView,
                       );
                     },
@@ -1032,7 +1017,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     thickness: 1.5,
                     color: Theme.of(context).dividerColor.withOpacity(0.15),
                   ),
-                     ListTile(
+                  ListTile(
                     dense: true,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -1055,7 +1040,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     onTap: () async {
                       await launchUrlString(
-                        'https://www.notion.so/Nutzungsbedingungen-222017fc7cf7800d9b1bddd0c8168cd5?source=copy_link',
+                        'https://www.notion.so/Terms-of-Use-Privacy-Notice-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
+                        mode: LaunchMode.inAppWebView,
+                      );
+                    },
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    thickness: 1.5,
+                    color: Theme.of(context).dividerColor.withOpacity(0.15),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                    title: Text(
+                      'Impressum',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            Theme.of(context).textTheme.bodyLarge?.color ??
+                            Colors.black,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Theme.of(context).iconTheme.color,
+                    ),
+                    onTap: () async {
+                      await launchUrlString(
+                        'https://www.notion.so/Impressum-25f017fc7cf78080a966d753ea6067bf?source=copy_link',
                         mode: LaunchMode.inAppWebView,
                       );
                     },
@@ -1101,7 +1121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
             Center(
               child: Text(
-                'Version 1.0.0',
+                'Version 1.0.1',
                 style: TextStyle(
                   fontSize: 12,
                   color:

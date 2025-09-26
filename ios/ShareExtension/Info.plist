@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>PHONĒ Share</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>ShareExtension</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(FLUTTER_BUILD_NAME)</string>
+    <key>CFBundleVersion</key>
+    <string>$(FLUTTER_BUILD_NUMBER)</string>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>receivesharingintent</string>
+    </array>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionAttributes</key>
+        <dict>
+            <key>NSExtensionActivationSupportsAttachmentsWithMinCount</key>
+            <integer>1</integer>
+            <key>NSExtensionActivationSupportsAttachmentsWithMaxCount</key>
+            <integer>10</integer>
+            <key>NSExtensionActivationSupportsFileWithTypes</key>
+            <array>
+              <string>public.audio</string>
+              <string>public.mpeg-4-audio</string>
+              <string>public.mp3</string>
+              <string>com.apple.coreaudio-format</string>
+              <string>public.data</string>
+              <string>public.item</string>
+              <string>com.apple.m4a-audio</string>
+              <string>com.apple.protected-mpeg-4-audio</string>
+              <string>public.waveform-audio</string>
+              <string>public.aiff-audio</string>
+              <string>org.ietf.opus</string>
+              <string>org.xiph.ogg-container</string>
+            </array>
+        </dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.share-services</string>
+        <key>NSExtensionPrincipalClass</key>
+        <string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
+    </dict>
+    <key>SHARE_EXTENSION_GROUP_ID</key>
+    <string>group.com.simonnikel.phone</string>
+</dict>
+</plist>

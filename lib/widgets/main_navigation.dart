@@ -22,7 +22,6 @@ import '../screens/prophetien_screen.dart';
 import '../screens/aufnahme_screen.dart';
 import '../screens/traeume_screen.dart';
 import '../screens/profil_screen.dart';
-// import '../screens/phone_plus_screen.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../services/purchase_service.dart';
@@ -103,6 +102,7 @@ class _MainNavigationState extends State<MainNavigation>
     final isPremium = context.watch<PremiumProvider>().isPremium;
     return GestureDetector(
       onTap: () async {
+        await HapticFeedback.mediumImpact();
         if (isPremium) {
           showModalBottomSheet(
             context: context,
@@ -654,32 +654,14 @@ class _RecordingBottomSheetState extends State<RecordingBottomSheet> {
               'Aufnahme',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedOpacity(
-                  opacity: isRecording ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 500),
-                    width: isRecording ? 12 : 8,
-                    height: isRecording ? 12 : 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_elapsed.inMinutes.remainder(60).toString().padLeft(2, '0')}:${_elapsed.inSeconds.remainder(60).toString().padLeft(2, '0')}.${(_elapsed.inMilliseconds.remainder(1000) ~/ 10).toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 8),
+            Text(
+              '${_elapsed.inMinutes.remainder(60).toString().padLeft(2, '0')}:${_elapsed.inSeconds.remainder(60).toString().padLeft(2, '0')}.${(_elapsed.inMilliseconds.remainder(1000) ~/ 10).toString().padLeft(2, '0')}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.normal,
+              ),
             ),
             const SizedBox(height: 10, width: double.infinity),
             AudioWaveforms(

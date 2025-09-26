@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/cupertino.dart' show CupertinoSliverRefreshControl;
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -37,7 +38,7 @@ import 'package:provider/provider.dart';
 import '../providers/prophetie_provider.dart';
 import '../providers/premium_provider.dart';
 import '../widgets/status_card.dart';
-import '../main.dart';
+import '../main.dart' show Handlebar, showFlushbar;
 
 Map<String, dynamic>? tryParseJson(String input) {
   try {
@@ -76,6 +77,7 @@ class ProphetienScreenState extends State<ProphetienScreen> {
   // AudioPlayer-Instanz für Prophetie-Detailansicht
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+
   void _openCreateSheet() {
     final isPremium = context.read<PremiumProvider>().isPremium;
     showModalBottomSheet(
@@ -89,22 +91,13 @@ class ProphetienScreenState extends State<ProphetienScreen> {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
+                const Handlebar(),
+                const SizedBox(height: 4),
                 ListTile(
                   leading: const Icon(Icons.upload_file),
                   title: const Text('Audio hochladen', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -130,17 +123,7 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                   subtitle: const Text('Manuelle Prophetie erfassen'),
                   onTap: () async {
                     Navigator.of(ctx).pop();
-                    if (isPremium) {
-                      _createTextProphetie();
-                    } else {
-                      try {
-                        await PurchaseService().presentPaywall(
-                          offeringId: 'ofrng9db6804728',
-                        );
-                      } catch (e) {
-                        debugPrint('Paywall-Error: $e');
-                      }
-                    }
+                    _createTextProphetie();
                   },
                 ),
                 const SizedBox(height: 4),
@@ -364,7 +347,7 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      showDragHandle: false,
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -382,6 +365,8 @@ class ProphetienScreenState extends State<ProphetienScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const Handlebar(),
+                  const SizedBox(height: 6),
                   // Titel wie im Labels-/Träume-Sheet
                   Padding(
                     padding: const EdgeInsets.only(top: 0, bottom: 4),
@@ -534,32 +519,41 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                 final labels = filterOptions
                     .where((l) => l != 'Alle' && l != '+ Label verwalten')
                     .toList();
-                return ManageLabelsList(
-                  labels: labels,
-                  onReorder: (updatedLabels) async {
-                    labels.clear();
-                    labels.addAll(updatedLabels);
-                    setState(() {
-                      filterOptions = ['Alle', ...updatedLabels];
-                    });
-                    await LabelService.instance.updateOrder(updatedLabels);
-                    Future.microtask(() {
-                      setModalState(() {});
-                    });
-                  },
-                  onRename: (oldLabel, newLabel) async {
-                    await LabelService.instance.renameLabel(oldLabel, newLabel);
-                    setModalState(() {});
-                  },
-                  onDelete: (label) async {
-                    await LabelService.instance.deleteLabel(label);
-                    setModalState(() {});
-                  },
-                  onAddLabel: (label) async {
-                    await LabelService.instance.addLabel(label);
-                    setModalState(() {});
-                  },
-                  showTitle: true,
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Handlebar(),
+                    const SizedBox(height: 0),
+                    Expanded(
+                      child: ManageLabelsList(
+                        labels: labels,
+                        onReorder: (updatedLabels) async {
+                          labels.clear();
+                          labels.addAll(updatedLabels);
+                          setState(() {
+                            filterOptions = ['Alle', ...updatedLabels];
+                          });
+                          await LabelService.instance.updateOrder(updatedLabels);
+                          Future.microtask(() {
+                            setModalState(() {});
+                          });
+                        },
+                        onRename: (oldLabel, newLabel) async {
+                          await LabelService.instance.renameLabel(oldLabel, newLabel);
+                          setModalState(() {});
+                        },
+                        onDelete: (label) async {
+                          await LabelService.instance.deleteLabel(label);
+                          setModalState(() {});
+                        },
+                        onAddLabel: (label) async {
+                          await LabelService.instance.addLabel(label);
+                          setModalState(() {});
+                        },
+                        showTitle: true,
+                      ),
+                    ),
+                  ],
                 );
               },
             );
@@ -852,147 +846,149 @@ class ProphetienScreenState extends State<ProphetienScreen> {
                             : 0) +
                         others.length;
 
-                    return CustomScrollView(
-                      slivers: [
-                        CupertinoSliverRefreshControl(
-                          onRefresh: () async {
-                            await prophetieProvider.loadProphetien();
-                            await HapticFeedback.mediumImpact();
-                            setState(() {});
-                          },
-                        ),
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate((context, idx) {
-                            int cursor = 0;
-                            // Favoriten-Header
-                            if (favorites.isNotEmpty) {
-                              if (idx == cursor) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(
-                                        () => showFavorites = !showFavorites,
-                                      );
-                                    },
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "★ Favoriten",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        Icon(
-                                          showFavorites
-                                              ? Icons.expand_less
-                                              : Icons.expand_more,
-                                          size: 20,
-                                          color: Colors.black54,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }
-                              cursor++;
-                              // Favoriten Cards
-                              if (showFavorites) {
-                                final favIdx = idx - cursor;
-                                if (favIdx < favorites.length) {
-                                  // --- PATCH: Abstand vor erster Prophetie ---
-                                  Widget cardWidget;
-                                  Prophetie? p;
-                                  if (favorites.isNotEmpty) {
-                                    if (idx == 1 && favIdx == 0) {
-                                      p = favorites[0];
-                                    } else {
-                                      p = favorites[favIdx];
-                                    }
-                                  } else {
-                                    p = others[favIdx];
-                                  }
-                                  if (idx == 1 && favIdx == 0) {
-                                    cardWidget = Column(
-                                      children: [
-                                        const SizedBox(height: 20),
-                                        _buildCard(p),
-                                      ],
-                                    );
-                                  } else {
-                                    cardWidget = _buildCard(p);
-                                  }
-                                  return cardWidget;
-                                  // --- ENDE PATCH ---
-                                }
-                                cursor += favorites.length;
-                                // SizedBox nach Favoriten
+                    return SlidableAutoCloseBehavior(
+                      child: CustomScrollView(
+                        slivers: [
+                          CupertinoSliverRefreshControl(
+                            onRefresh: () async {
+                              await prophetieProvider.loadProphetien();
+                              await HapticFeedback.mediumImpact();
+                              setState(() {});
+                            },
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate((context, idx) {
+                              int cursor = 0;
+                              // Favoriten-Header
+                              if (favorites.isNotEmpty) {
                                 if (idx == cursor) {
-                                  return const SizedBox(height: 5);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(
+                                          () => showFavorites = !showFavorites,
+                                        );
+                                      },
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "★ Favoriten",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          Icon(
+                                            showFavorites
+                                                ? Icons.expand_less
+                                                : Icons.expand_more,
+                                            size: 20,
+                                            color: Colors.black54,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
                                 }
                                 cursor++;
-                              }
-                            }
-                            // Others
-                            final othersIdx = idx - cursor;
-                            if (othersIdx >= 0 && othersIdx < others.length) {
-                              // --- PATCH: Abstand vor erster Prophetie ---
-                              Widget cardWidget;
-                              Prophetie? p;
-                              if (favorites.isNotEmpty) {
-                                if (idx == 0) {
-                                  p = favorites[0];
-                                } else if (showFavorites &&
-                                    idx <= favorites.length) {
-                                  p = favorites[idx - 1];
-                                } else {
-                                  int othersIndex =
-                                      idx -
-                                      1 -
-                                      (showFavorites ? favorites.length : 0);
-                                  p = others[othersIndex];
+                                // Favoriten Cards
+                                if (showFavorites) {
+                                  final favIdx = idx - cursor;
+                                  if (favIdx < favorites.length) {
+                                    // --- PATCH: Abstand vor erster Prophetie ---
+                                    Widget cardWidget;
+                                    Prophetie? p;
+                                    if (favorites.isNotEmpty) {
+                                      if (idx == 1 && favIdx == 0) {
+                                        p = favorites[0];
+                                      } else {
+                                        p = favorites[favIdx];
+                                      }
+                                    } else {
+                                      p = others[favIdx];
+                                    }
+                                    if (idx == 1 && favIdx == 0) {
+                                      cardWidget = Column(
+                                        children: [
+                                          const SizedBox(height: 20),
+                                          _buildCard(p),
+                                        ],
+                                      );
+                                    } else {
+                                      cardWidget = _buildCard(p);
+                                    }
+                                    return cardWidget;
+                                    // --- ENDE PATCH ---
+                                  }
+                                  cursor += favorites.length;
+                                  // SizedBox nach Favoriten
+                                  if (idx == cursor) {
+                                    return const SizedBox(height: 5);
+                                  }
+                                  cursor++;
                                 }
-                              } else {
-                                p = others[idx];
                               }
-                              if (
-                              // Im "Others"-Bereich: idx == 0 ist nur möglich, wenn es keine Favoriten gibt
-                              idx == 0) {
-                                cardWidget = Column(
-                                  children: [
-                                    const SizedBox(height: 20),
-                                    _buildCard(p),
-                                  ],
-                                );
-                              } else if (
-                              // Im "Others"-Bereich: Wenn es Favoriten gibt, dann ist das erste Element nach Favoriten
-                              favorites.isNotEmpty &&
-                                  showFavorites &&
-                                  idx ==
-                                      (1 +
-                                          favorites.length +
-                                          1) // Header + Favoriten + SizedBox
-                                      ) {
-                                cardWidget = Column(
-                                  children: [
-                                    const SizedBox(height: 17),
-                                    _buildCard(p),
-                                  ],
-                                );
-                              } else {
-                                cardWidget = _buildCard(p);
+                              // Others
+                              final othersIdx = idx - cursor;
+                              if (othersIdx >= 0 && othersIdx < others.length) {
+                                // --- PATCH: Abstand vor erster Prophetie ---
+                                Widget cardWidget;
+                                Prophetie? p;
+                                if (favorites.isNotEmpty) {
+                                  if (idx == 0) {
+                                    p = favorites[0];
+                                  } else if (showFavorites &&
+                                      idx <= favorites.length) {
+                                    p = favorites[idx - 1];
+                                  } else {
+                                    int othersIndex =
+                                        idx -
+                                        1 -
+                                        (showFavorites ? favorites.length : 0);
+                                    p = others[othersIndex];
+                                  }
+                                } else {
+                                  p = others[idx];
+                                }
+                                if (
+                                // Im "Others"-Bereich: idx == 0 ist nur möglich, wenn es keine Favoriten gibt
+                                idx == 0) {
+                                  cardWidget = Column(
+                                    children: [
+                                      const SizedBox(height: 20),
+                                      _buildCard(p),
+                                    ],
+                                  );
+                                } else if (
+                                // Im "Others"-Bereich: Wenn es Favoriten gibt, dann ist das erste Element nach Favoriten
+                                favorites.isNotEmpty &&
+                                    showFavorites &&
+                                    idx ==
+                                        (1 +
+                                            favorites.length +
+                                            1) // Header + Favoriten + SizedBox
+                                        ) {
+                                  cardWidget = Column(
+                                    children: [
+                                      const SizedBox(height: 17),
+                                      _buildCard(p),
+                                    ],
+                                  );
+                                } else {
+                                  cardWidget = _buildCard(p);
+                                }
+                                return cardWidget;
+                                // --- ENDE PATCH ---
                               }
-                              return cardWidget;
-                              // --- ENDE PATCH ---
-                            }
-                            // Fallback
-                            return const SizedBox.shrink();
-                          }, childCount: itemCount),
-                        ),
-                      ],
+                              // Fallback
+                              return const SizedBox.shrink();
+                            }, childCount: itemCount),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -1070,6 +1066,142 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     }
   }
 
+  Future<void> _showNoteSheet(Prophetie p) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // 1) Aktuelle Werte laden (Notes + Flag)
+    String existingNotes = p.notes ?? '';
+    bool includeInAnalysis = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('prophetien')
+          .doc(p.id)
+          .get();
+      final data = snap.data();
+      if (data != null) {
+        if (data['notes'] is String) existingNotes = (data['notes'] as String).trim();
+        if (data['notesIncludeInAnalysis'] is bool) includeInAnalysis = data['notesIncludeInAnalysis'] as bool;
+      }
+    } catch (e) {
+      debugPrint('Notes laden fehlgeschlagen: $e');
+    }
+
+    final controller = TextEditingController(text: existingNotes);
+    bool saving = false;
+    bool flag = includeInAnalysis;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                left: 16,
+                right: 16,
+                top: 0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Handlebar(),
+                  const SizedBox(height: 8),
+                  Text(
+                    existingNotes.isEmpty ? 'Notiz hinzufügen' : 'Notiz bearbeiten',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: controller,
+                    minLines: 5,
+                    maxLines: 10,
+                    keyboardType: TextInputType.multiline,
+                    decoration: InputDecoration(
+                      hintText: 'Schreibe deine Notiz…',
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[850] : Colors.grey[200],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: flag,
+                    onChanged: (v) => setModalState(() => flag = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('In Analyse einbeziehen'),
+                    subtitle: const Text('Wenn aktiv, werden diese Notizen bei der Auswertung berücksichtigt.'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF2C55),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              setModalState(() => saving = true);
+                              try {
+                                await HapticFeedback.lightImpact();
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(userId)
+                                    .collection('prophetien')
+                                    .doc(p.id)
+                                    .update({
+                                  'notes': controller.text.trim(),
+                                  'notesIncludeInAnalysis': flag,
+                                });
+                                if (mounted) Navigator.of(ctx).pop();
+                                showFlushbar('Notiz gespeichert.');
+                                // Optional: lokale Liste aktualisieren
+                                setState(() {
+                                  final idx = prophetien.indexWhere((e) => e.id == p.id);
+                                  if (idx != -1) {
+                                    prophetien[idx] = prophetien[idx].copyWith(
+                                      transcript: prophetien[idx].transcript, // unverändert
+                                      notes: controller.text.trim(),
+                                    );
+                                  }
+                                });
+                              } catch (e) {
+                                debugPrint('Notiz speichern fehlgeschlagen: $e');
+                                showFlushbar('Speichern fehlgeschlagen.');
+                              } finally {
+                                if (mounted) setModalState(() => saving = false);
+                              }
+                            },
+                      child: Text(saving ? 'Speichern…' : 'Speichern', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildCard(Prophetie p) {
     if (p.status != ProcessingStatus.complete &&
         p.status != ProcessingStatus.none) {
@@ -1079,6 +1211,29 @@ class ProphetienScreenState extends State<ProphetienScreen> {
       // PATCH: Return a Slidable so failed/processing propheties can be deleted by swipe
       return Slidable(
         key: ValueKey(p.id),
+        startActionPane: ActionPane(
+          motion: const ScrollMotion(),
+          extentRatio: 0.25,
+          dismissible: DismissiblePane(
+            onDismissed: () {},
+            closeOnCancel: true,
+            confirmDismiss: () async {
+              await _showNoteSheet(p);
+              return false; // keine echte Entfernung, nur Aktion
+            },
+          ),
+          children: [
+            SlidableAction(
+              onPressed: (_) async {
+                await _showNoteSheet(p);
+              },
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              icon: Icons.edit_note,
+              label: 'Notiz',
+            ),
+          ],
+        ),
         endActionPane: ActionPane(
           motion: const ScrollMotion(),
           extentRatio: 0.25,
@@ -1179,6 +1334,29 @@ class ProphetienScreenState extends State<ProphetienScreen> {
     // If analyzed, show normal interactive card with overlay chip at top-right
     return Slidable(
       key: ValueKey(p.id),
+      startActionPane: ActionPane(
+        motion: const ScrollMotion(),
+        extentRatio: 0.25,
+        dismissible: DismissiblePane(
+          onDismissed: () {},
+          closeOnCancel: true,
+          confirmDismiss: () async {
+            await _showNoteSheet(p);
+            return false;
+          },
+        ),
+        children: [
+          SlidableAction(
+            onPressed: (_) async {
+              await _showNoteSheet(p);
+            },
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            icon: Icons.edit_note,
+            label: 'Notiz',
+          ),
+        ],
+      ),
       endActionPane: ActionPane(
         motion: const ScrollMotion(),
         extentRatio: 0.5,
@@ -1297,8 +1475,29 @@ class ProphetienScreenState extends State<ProphetienScreen> {
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
+                showDragHandle: false,
                 backgroundColor: Theme.of(context).cardColor,
-                builder: (_) => ProphetieDetailSheet(prophetieId: p.id),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (ctx) {
+                  return SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Handlebar(),
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: ProphetieDetailSheet(prophetieId: p.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
             child: Container(
@@ -1447,6 +1646,7 @@ extension ProphetienCopyWith on Prophetie {
     String? storiesExamplesCitations,
     String? actionItems,
     String? transcript,
+    String? notes,
   }) {
     return Prophetie(
       id: id ?? this.id,
@@ -1465,6 +1665,7 @@ extension ProphetienCopyWith on Prophetie {
           storiesExamplesCitations ?? this.storiesExamplesCitations,
       actionItems: actionItems ?? this.actionItems,
       transcript: transcript ?? this.transcript,
+      notes: notes ?? this.notes,
     );
   }
 }

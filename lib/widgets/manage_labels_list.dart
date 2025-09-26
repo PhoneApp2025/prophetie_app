@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import '../main.dart';
 import 'dart:math' as math;
 
@@ -156,7 +157,8 @@ class _ManageLabelsListState extends State<ManageLabelsList> {
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    onTap: () {
+                    onTap: () async {
+                      await HapticFeedback.mediumImpact();
                       final value = _addLabelController.text.trim();
                       if (value.isNotEmpty) {
                         if (!isLabelNameValid(value)) {

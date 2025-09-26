@@ -93,101 +93,122 @@ class _AllBlogScreenState extends State<AllBlogScreen> {
       ),
       body: Column(
         children: [
-          // Search bar (统一样式)
-          SizedBox(
-            height: 55,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-              child: SizedBox(
-                height: 40,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Suchen',
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    isDense: true,
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.dark
-                        ? Colors.grey[850]
-                        : Colors.grey[200],
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
+          // Search + labels like ProphetienScreen
+          // Search row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: 'Suchen',
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        isDense: true,
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[850]
+                            : Colors.grey[200],
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
-                  style: const TextStyle(fontSize: 14),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Kategorien',
+                  child: Material(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[850]
+                        : Colors.grey[200],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () async {
+                        // Optional: kurze Haptik; keine weitere Aktion nötig
+                        await HapticFeedback.selectionClick();
+                      },
+                      child: const SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Icon(Icons.local_offer_outlined, size: 20),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Labels row
+          // Labels under search: ChoiceChips like ProphetienScreen
           SizedBox(
-            height: 38,
+            height: 36,
             child: FutureBuilder<List<Widget>>(
               future: _blogCardsFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting ||
-                    !snapshot.hasData) {
-                  return const SizedBox(height: 8);
+                if (snapshot.connectionState == ConnectionState.waiting || !snapshot.hasData) {
+                  return const SizedBox.shrink();
                 }
                 final cards = snapshot.data!.whereType<BlogCard>().toList();
-                final cats = <String>{'Alle'};
+                final cats = <String>{};
                 for (final c in cards) {
-                  if (c.category.trim().isNotEmpty) cats.add(c.category.trim());
+                  final cat = c.category.trim();
+                  if (cat.isNotEmpty) cats.add(cat);
                 }
-                final list = cats.toList();
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                final labels = <String>['Alle', ...cats.toList()];
+
+                return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, i) {
-                    final cat = list[i];
-                    final selected = cat == selectedCategory;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () async {
-                        await HapticFeedback.selectionClick();
-                        setState(() => selectedCategory = cat);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? const Color(0xFFFF2C55).withOpacity(0.14)
-                              : (Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.white.withOpacity(0.08)
-                                    : Colors.white),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          cat,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13.5,
-                            color: selected
-                                ? const Color(0xFFFF2C55)
-                                : (Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.white.withOpacity(0.92)
-                                      : theme.textTheme.bodyMedium?.color
-                                            ?.withOpacity(0.9)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      for (final label in labels)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10.0),
+                          child: ChoiceChip(
+                            label: Text(
+                              label,
+                              style: TextStyle(
+                                fontWeight: (selectedCategory == label)
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: (selectedCategory == label)
+                                    ? const Color(0xFFFF2C55)
+                                    : Theme.of(context).textTheme.bodyMedium?.color,
+                              ),
+                            ),
+                            selected: selectedCategory == label,
+                            showCheckmark: false,
+                            selectedColor: const Color(0xFFFF2C55).withOpacity(0.2),
+                            backgroundColor: Theme.of(context).cardColor,
+                            labelStyle: TextStyle(
+                              fontWeight: (selectedCategory == label)
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: (selectedCategory == label)
+                                  ? const Color(0xFFFF2C55)
+                                  : Theme.of(context).textTheme.bodyMedium?.color,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                            onSelected: (_) => setState(() => selectedCategory = label),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                    ],
+                  ),
                 );
               },
             ),

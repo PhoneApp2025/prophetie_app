@@ -2,7 +2,7 @@ name: prophetie_app
 description: "journal app for dreams, thoughts and ideas"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.3+1
 
 environment:
   sdk: ^3.8.0
@@ -31,9 +31,8 @@ dependencies:
   googleapis: ^14.0.0
   googleapis_auth: ^2.0.0
   http: ^1.4.0
-  url_launcher: ^6.2.5
+  url_launcher: ^6.3.2
   connectivity_plus: ^4.0.0
-  in_app_purchase: 3.2.3
   image_picker: ^1.0.4
   firebase_core: ^3.14.0
   firebase_auth: ^5.6.0
@@ -50,13 +49,24 @@ dependencies:
   video_player: ^2.7.0
   chewie: ^1.7.0
   font_awesome_flutter: ^10.7.0
-  
+  another_flushbar: ^1.10.24
+  purchases_flutter: ^8.10.1
+  purchases_ui_flutter: ^8.10.1
+  receive_sharing_intent: 1.8.1  
+  flutter_native_splash: ^2.4.6
+  just_audio_background: ^0.0.1-beta.17
+  webview_flutter: ^4.0.7
+  modal_bottom_sheet: ^3.0.0
+  flutter_widget_from_html: ^0.17.0
+  firebase_remote_config: ^5.5.0
+  package_info_plus: ^8.3.1
+  showcaseview: ^4.0.1
+
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  flutter_intl: ^0.1.0
 
 flutter_icons:
   android: true
@@ -66,10 +76,11 @@ flutter_icons:
 flutter:
   uses-material-design: true
   assets:
-    - .env
     - assets/icons/
+    - assets/icons/instagram.svg
     - assets/images/
     - assets/data/traeume_lexikon.json
+    - .env
 
 
   fonts:
@@ -80,3 +91,10 @@ flutter:
           weight: 700
         - asset: assets/fonts/Poppins-Italic.ttf
           style: italic
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/logo.png
+  android: true
+  ios: true
+  fullscreen: true

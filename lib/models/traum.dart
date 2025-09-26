@@ -19,6 +19,7 @@ class Traum {
   final String? storiesExamplesCitations;
   final String? actionItems;
   final String? transcript;
+  final String? notes;
   final String? driveAudioId;
   final ProcessingStatus status;
   final String? lastErrorMessage;
@@ -41,6 +42,7 @@ class Traum {
     this.storiesExamplesCitations,
     this.actionItems,
     this.transcript,
+    this.notes,
     this.driveAudioId,
     this.status = ProcessingStatus.none,
     this.lastErrorMessage,
@@ -69,6 +71,7 @@ class Traum {
     String? lastErrorMessage,
     List<String>? matchingTopics,
     bool? isTopNews,
+    String? notes,
   }) {
     return Traum(
       id: id ?? this.id,
@@ -87,6 +90,7 @@ class Traum {
           storiesExamplesCitations ?? this.storiesExamplesCitations,
       actionItems: actionItems ?? this.actionItems,
       transcript: transcript ?? this.transcript,
+      notes: notes ?? this.notes,
       driveAudioId: driveAudioId ?? this.driveAudioId,
       status: status ?? this.status,
       lastErrorMessage: lastErrorMessage ?? this.lastErrorMessage,
@@ -112,6 +116,7 @@ class Traum {
       'storiesExamplesCitations': storiesExamplesCitations,
       'actionItems': actionItems,
       'transcript': transcript,
+      'notes': notes,
       'driveAudioId': driveAudioId,
       'status': status.toString(),
       'lastErrorMessage': lastErrorMessage,
@@ -189,6 +194,7 @@ class Traum {
       storiesExamplesCitations: parseField(json['storiesExamplesCitations']),
       actionItems: parseField(json['actionItems']),
       transcript: parseField(json['transcript']),
+      notes: parseField(json['notes']),
       driveAudioId: json['driveAudioId'],
       status: parseProcessingStatus(json['status']),
       lastErrorMessage: json['lastErrorMessage'],

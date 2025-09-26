@@ -101,7 +101,7 @@ class AboutScreen extends StatelessWidget {
                   children: [
                     const SizedBox(height: 0),
                     Text(
-                      'PHONĒ (φωνή) ist ein griechisches Wort aus dem Neuen Testament und bedeutet „Stimme“. Es stammt vom Verb φημί (phēmi), was „sprechen“, „sagen“ oder „offenbaren“ bedeutet. Das Wort wird häufig in Momenten verwendet, in denen Gott direkt spricht – etwa „Und siehe, eine Stimme (φωνή) aus dem Himmel sprach …“ (vgl. Matthäus 3,17).\n\n'
+                      'PHONĒ (φωνή, ausgesprochen: "Fo-nä", Phone-nay) ist ein griechisches Wort aus dem Neuen Testament und bedeutet „Stimme“. Es stammt vom Verb φημί (phēmi), was „sprechen“, „sagen“ oder „offenbaren“ bedeutet. Das Wort wird häufig in Momenten verwendet, in denen Gott direkt spricht – etwa „Und siehe, eine Stimme (φωνή) aus dem Himmel sprach …“ (vgl. Matthäus 3,17).\n\n'
                       'Diese App trägt diesen Namen, weil sie Raum geben soll, Gottes Reden aufzunehmen, zu verwalten und festzuhalten. PHONĒ steht dabei nicht für ein Gerät, sondern für das Hören und das Erinnern an Gottes Stimme – so wie sie in Träumen, Eindrücken und prophetischen Worten zu uns kommt.',
                       style: TextStyle(
                         color:
@@ -146,9 +146,8 @@ class AboutScreen extends StatelessWidget {
                   children: [
                     const SizedBox(height: 0),
                     Text(
-                      'Die jährliche Gebühr von 29,95 dient nicht dem Profit. Sie deckt die laufenden Kosten der App und soll ermöglichen, dass sie für jeden zugänglich bleibt.\n\n'
-                      'Wenn du die App schätzt, ihren Wert erkennst und sagst: „Ich feiere dieses Projekt“, dann möchte ich dich ermutigen, darüber hinaus in dieses Projekt zu investieren. Damit hilfst du mit, dass dieses Werkzeug auch in Zukunft weiterentwickelt und von vielen genutzt werden kann.\n\n'
-                      'Wenn dir 30 € im Jahr zu viel sind, kannst du alternativ ein monatliches Abo für nur 3,95 € wählen. So bleibt die App flexibel nutzbar und für möglichst viele Menschen verfügbar.',
+                      'Die App verursacht laufende Kosten, z. B. für Server, Sicherheit und Weiterentwicklung. Deshalb gibt es eine kostenpflichtige Premium-Version, die hilft, diese Ausgaben zu decken.\n\n'
+                      'Wenn du die App wertvoll findest, kannst du mit deinem Beitrag dazu beitragen, dass sie weiterhin gepflegt und verbessert wird. So bleibt PHONĒ für viele Menschen verfügbar und nachhaltig nutzbar.',
                       style: TextStyle(
                         color:
                             Theme.of(context).textTheme.bodyLarge?.color ??

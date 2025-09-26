@@ -149,6 +149,24 @@ exports.markSentRecordingAccepted = onCall(async (request) => {
         throw new functions.https.HttpsError('not-found', 'Das gesendete Recording existiert nicht.');
     }
 
-    await docRef.update({ status: 'angenommen' });
+    const data = docSnap.data();
+    const audioUrlUrl = data.audioUrlUrl;
+
+    // Datei aus Cloud Storage löschen, wenn URL vorhanden
+    if (audioUrlUrl) {
+        try {
+            const decodedUrl = decodeURIComponent(audioUrl);
+            const filePath = decodedUrl.split('/o/')[1].split('?')[0];
+            await admin.storage().bucket().file(filePath).delete();
+            console.log(`Datei erfolgreich gelöscht: ${filePath}`);
+        } catch (error) {
+            console.error("Fehler beim Löschen der Datei aus Storage:", error);
+        }
+    }
+
+    // Firestore-Dokument löschen
+    await docRef.delete();
+    console.log(`Firestore-Eintrag gelöscht: gesendet/${docId}`);
+
     return { success: true };
 });

@@ -97,6 +97,7 @@ STIL- UND PERSPEKTIVREGELN (WICHTIG):
 - In `summary` und `mainPoints`: direkte Ansprache („Du erkennst…“, „Gott lädt dich ein…“).
 - Biblisch fundiert (Bezüge auf NGÜ/SCH2000, keine langen Zitatblöcke in den Feldern außer `scriptureReferences`).
 - Klare Struktur, **ausschließlich** JSON-Output, keine Erklärtexte, kein Markdown.
+- **WICHTIG: NOTIZEN EINBEZIEHEN**: Wenn im Transkript ein Abschnitt `"[NOTIZEN FÜR DIE ANALYSE]"` vorhanden ist, behandle diese Notizen als zusätzliche Kontextinformationen des Nutzers. Beziehe sie in deine Deutung ein und wenn relevant, spiegele sie **knapp** in `mainPoints` und/oder `summary` (z. B. als Beobachtung, Hinweis oder Kontext). Ignoriere die Notizen nicht.
 
 Unter "storiesExamplesCitations" bitte jeweils zwei **kurze** narrative biblische Beispiele (keine reinen Verslisten).
 Fehlende Felder stets sinnvoll füllen (z. B. "Keine passenden biblischen Geschichten gefunden").
@@ -198,7 +199,34 @@ Future<void> analyzeAndSaveTraum({
   }
   _inProgressAnalyses.add(firestoreDocId);
   try {
-    final ai = await analyzeTraumContentWithQwenAI(transcript);
+    // Load optional notes + flag from Firestore and compose effective transcript
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    String effectiveTranscript = transcript;
+    bool notesWereIncluded = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('traeume')
+          .doc(firestoreDocId)
+          .get();
+      final data = snap.data();
+      final includeNotes = (data?['notesIncludeInAnalysis'] as bool?) ?? false;
+      final notes = (data?['notes'] as String?)?.trim() ?? '';
+      if (includeNotes && notes.isNotEmpty) {
+        notesWereIncluded = true;
+        effectiveTranscript = (
+          transcript.trim().isEmpty
+              ? notes
+              : transcript.trim() + "\n\n[NOTIZEN FÜR DIE ANALYSE]\n" + notes
+        );
+      }
+    } catch (e) {
+      // If fetching notes fails, proceed with original transcript
+      print('Hinweis: Notes (Traum) konnten nicht geladen werden: $e');
+    }
+
+    final ai = await analyzeTraumContentWithQwenAI(effectiveTranscript);
     if (ai != null) {
       await updateTraumAnalysisInFirestore(firestoreDocId, ai);
       await FirebaseFirestore.instance
@@ -207,6 +235,15 @@ Future<void> analyzeAndSaveTraum({
           .collection('traeume')
           .doc(firestoreDocId)
           .update({'isAnalyzed': true});
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('traeume')
+          .doc(firestoreDocId)
+          .set({
+            'notesIncludedInLastAnalysis': notesWereIncluded,
+            'lastAnalyzedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
       if (onReload != null) await onReload();
     }
   } finally {

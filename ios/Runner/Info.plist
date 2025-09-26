@@ -13,8 +13,10 @@
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Audio</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.audio</string>
@@ -52,6 +54,20 @@
 				<string>com.googleusercontent.apps.742010546706-19lh8l5bno228q3apjrdbmtabd238ia3</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>receivesharingintent</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>receivesharingintent</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>receivesharingintent</string>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

@@ -5,6 +5,7 @@ import '../services/purchase_service.dart';
 import '../screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -12,6 +13,19 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? pageTitle; // z.B. "Profile" oder null für Home
   final bool isHome;
   const CustomAppBar({super.key, this.pageTitle, this.isHome = false});
+
+  String _timeOfDayGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 11) return 'Morgen';
+    if (hour < 17) return 'Mittag';
+    return 'Abend';
+  }
+
+  String _firstNameFromDisplayName(String? displayName) {
+    if (displayName == null || displayName.trim().isEmpty) return '';
+    final parts = displayName.trim().split(RegExp(r"\s+"));
+    return parts.first;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +37,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       bottom: false,
       child: Container(
         color: Theme.of(context).scaffoldBackgroundColor,
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -60,7 +74,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   const SizedBox(height: 0),
                   Text(
-                    pageTitle ?? dateString, // Datum oder Seitentitel
+                    (isHome)
+                        ? (() {
+                            final firstName = _firstNameFromDisplayName(
+                                FirebaseAuth.instance.currentUser?.displayName);
+                            final greet = _timeOfDayGreeting();
+                            return firstName.isNotEmpty
+                                ? '$greet, $firstName!'
+                                : '$greet!';
+                          })()
+                        : (pageTitle ?? dateString), // Datum oder Seitentitel
                     textAlign: TextAlign.left,
                     style: const TextStyle(
                       color: Colors.grey,
@@ -145,5 +168,5 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(72);
 }

@@ -1,5 +1,5 @@
 import '../data/globals.dart';
-import 'package:prophetie_app/main.dart';
+import '../main.dart' show Handlebar, showFlushbar;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -33,7 +33,6 @@ import 'package:provider/provider.dart';
 import '../providers/premium_provider.dart';
 import '../providers/traum_provider.dart';
 import '../widgets/status_card.dart';
-import '../main.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../services/purchase_service.dart';
@@ -81,7 +80,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: false,
-      showDragHandle: true,
+      showDragHandle: false,
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -90,11 +89,13 @@ class TraeumeScreenState extends State<TraeumeScreen> {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Handlebar(),
+                const SizedBox(height: 4),
                 ListTile(
                   leading: const Icon(Icons.upload_file),
                   title: const Text('Audio hochladen', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -120,17 +121,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                   subtitle: const Text('Manuellen Traum erfassen'),
                   onTap: () async {
                     Navigator.of(ctx).pop();
-                    if (isPremium) {
-                      _createTextTraum();
-                    } else {
-                      try {
-                        await PurchaseService().presentPaywall(
-                          offeringId: 'ofrng9db6804728',
-                        );
-                      } catch (e) {
-                        debugPrint('Paywall-Error: $e');
-                      }
-                    }
+                    _createTextTraum();
                   },
                 ),
                 const SizedBox(height: 4),
@@ -346,7 +337,7 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      showDragHandle: false,
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -364,6 +355,8 @@ class TraeumeScreenState extends State<TraeumeScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const Handlebar(),
+                  const SizedBox(height: 6),
                   // Titel wie im Labels-Sheet
                   Padding(
                     padding: const EdgeInsets.only(top: 0, bottom: 4),
@@ -517,32 +510,41 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                 final labels = filterOptions
                     .where((l) => l != 'Alle' && l != '+ Label verwalten')
                     .toList();
-                return ManageLabelsList(
-                  labels: labels,
-                  onReorder: (updatedLabels) async {
-                    labels.clear();
-                    labels.addAll(updatedLabels);
-                    setState(() {
-                      filterOptions = ['Alle', ...updatedLabels];
-                    });
-                    await LabelService.instance.updateOrder(updatedLabels);
-                    Future.microtask(() {
-                      setModalState(() {});
-                    });
-                  },
-                  onRename: (oldLabel, newLabel) async {
-                    await LabelService.instance.renameLabel(oldLabel, newLabel);
-                    setModalState(() {});
-                  },
-                  onDelete: (label) async {
-                    await LabelService.instance.deleteLabel(label);
-                    setModalState(() {});
-                  },
-                  onAddLabel: (label) async {
-                    await LabelService.instance.addLabel(label);
-                    setModalState(() {});
-                  },
-                  showTitle: true,
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Handlebar(),
+                    const SizedBox(height: 1),
+                    Expanded(
+                      child: ManageLabelsList(
+                        labels: labels,
+                        onReorder: (updatedLabels) async {
+                          labels.clear();
+                          labels.addAll(updatedLabels);
+                          setState(() {
+                            filterOptions = ['Alle', ...updatedLabels];
+                          });
+                          await LabelService.instance.updateOrder(updatedLabels);
+                          Future.microtask(() {
+                            setModalState(() {});
+                          });
+                        },
+                        onRename: (oldLabel, newLabel) async {
+                          await LabelService.instance.renameLabel(oldLabel, newLabel);
+                          setModalState(() {});
+                        },
+                        onDelete: (label) async {
+                          await LabelService.instance.deleteLabel(label);
+                          setModalState(() {});
+                        },
+                        onAddLabel: (label) async {
+                          await LabelService.instance.addLabel(label);
+                          setModalState(() {});
+                        },
+                        showTitle: true,
+                      ),
+                    ),
+                  ],
                 );
               },
             );
@@ -833,147 +835,130 @@ class TraeumeScreenState extends State<TraeumeScreen> {
                             : 0) +
                         others.length;
 
-                    return CustomScrollView(
-                      slivers: [
-                        CupertinoSliverRefreshControl(
-                          onRefresh: () async {
-                            await traumProvider.loadTraeume();
-                            await HapticFeedback.mediumImpact();
-                            setState(() {});
-                          },
-                        ),
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate((context, idx) {
-                            int cursor = 0;
-                            // Favoriten-Header
-                            if (favorites.isNotEmpty) {
-                              if (idx == cursor) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(
-                                        () => showFavorites = !showFavorites,
-                                      );
-                                    },
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "★ Favoriten",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        Icon(
-                                          showFavorites
-                                              ? Icons.expand_less
-                                              : Icons.expand_more,
-                                          size: 20,
-                                          color: Colors.black54,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }
-                              cursor++;
-                              // Favoriten Cards
-                              if (showFavorites) {
-                                final favIdx = idx - cursor;
-                                if (favIdx < favorites.length) {
-                                  // --- PATCH: Abstand vor erster Prophetie ---
-                                  Widget cardWidget;
-                                  Traum? t;
-                                  if (favorites.isNotEmpty) {
-                                    if (idx == 1 && favIdx == 0) {
-                                      t = favorites[0];
-                                    } else {
-                                      t = favorites[favIdx];
-                                    }
-                                  } else {
-                                    t = others[favIdx];
-                                  }
-                                  if (idx == 1 && favIdx == 0) {
-                                    cardWidget = Column(
-                                      children: [
-                                        const SizedBox(height: 20),
-                                        _buildCard(t),
-                                      ],
-                                    );
-                                  } else {
-                                    cardWidget = _buildCard(t);
-                                  }
-                                  return cardWidget;
-                                  // --- ENDE PATCH ---
-                                }
-                                cursor += favorites.length;
-                                // SizedBox nach Favoriten
+                    return SlidableAutoCloseBehavior(
+                      child: CustomScrollView(
+                        slivers: [
+                          CupertinoSliverRefreshControl(
+                            onRefresh: () async {
+                              await traumProvider.loadTraeume();
+                              await HapticFeedback.mediumImpact();
+                              setState(() {});
+                            },
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate((context, idx) {
+                              int cursor = 0;
+                              // Favoriten-Header
+                              if (favorites.isNotEmpty) {
                                 if (idx == cursor) {
-                                  return const SizedBox(height: 5);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() => showFavorites = !showFavorites);
+                                      },
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "★ Favoriten",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          Icon(
+                                            showFavorites ? Icons.expand_less : Icons.expand_more,
+                                            size: 20,
+                                            color: Colors.black54,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
                                 }
                                 cursor++;
-                              }
-                            }
-                            // Others
-                            final othersIdx = idx - cursor;
-                            if (othersIdx >= 0 && othersIdx < others.length) {
-                              // --- PATCH: Abstand vor erster Prophetie ---
-                              Widget cardWidget;
-                              Traum? t;
-                              if (favorites.isNotEmpty) {
-                                if (idx == 0) {
-                                  t = favorites[0];
-                                } else if (showFavorites &&
-                                    idx <= favorites.length) {
-                                  t = favorites[idx - 1];
-                                } else {
-                                  int othersIndex =
-                                      idx -
-                                      1 -
-                                      (showFavorites ? favorites.length : 0);
-                                  t = others[othersIndex];
+                                // Favoriten Cards
+                                if (showFavorites) {
+                                  final favIdx = idx - cursor;
+                                  if (favIdx < favorites.length) {
+                                    // --- Abstand vor erster Karte ---
+                                    Widget cardWidget;
+                                    Traum? t;
+                                    if (favorites.isNotEmpty) {
+                                      if (idx == 1 && favIdx == 0) {
+                                        t = favorites[0];
+                                      } else {
+                                        t = favorites[favIdx];
+                                      }
+                                    } else {
+                                      t = others[favIdx];
+                                    }
+                                    if (idx == 1 && favIdx == 0) {
+                                      cardWidget = Column(
+                                        children: [
+                                          const SizedBox(height: 20),
+                                          _buildCard(t),
+                                        ],
+                                      );
+                                    } else {
+                                      cardWidget = _buildCard(t);
+                                    }
+                                    return cardWidget;
+                                    // --- ENDE ---
+                                  }
+                                  cursor += favorites.length;
+                                  // SizedBox nach Favoriten
+                                  if (idx == cursor) {
+                                    return const SizedBox(height: 5);
+                                  }
+                                  cursor++;
                                 }
-                              } else {
-                                t = others[idx];
                               }
-                              if (
-                              // Im "Others"-Bereich: idx == 0 ist nur möglich, wenn es keine Favoriten gibt
-                              idx == 0) {
-                                cardWidget = Column(
-                                  children: [
-                                    const SizedBox(height: 20),
-                                    _buildCard(t),
-                                  ],
-                                );
-                              } else if (
-                              // Im "Others"-Bereich: Wenn es Favoriten gibt, dann ist das erste Element nach Favoriten
-                              favorites.isNotEmpty &&
-                                  showFavorites &&
-                                  idx ==
-                                      (1 +
-                                          favorites.length +
-                                          1) // Header + Favoriten + SizedBox
-                                      ) {
-                                cardWidget = Column(
-                                  children: [
-                                    const SizedBox(height: 17),
-                                    _buildCard(t),
-                                  ],
-                                );
-                              } else {
-                                cardWidget = _buildCard(t);
+                              // Others
+                              final othersIdx = idx - cursor;
+                              if (othersIdx >= 0 && othersIdx < others.length) {
+                                // --- Abstand vor erster Karte ---
+                                Widget cardWidget;
+                                Traum? t;
+                                if (favorites.isNotEmpty) {
+                                  if (idx == 0) {
+                                    t = favorites[0];
+                                  } else if (showFavorites && idx <= favorites.length) {
+                                    t = favorites[idx - 1];
+                                  } else {
+                                    int othersIndex = idx - 1 - (showFavorites ? favorites.length : 0);
+                                    t = others[othersIndex];
+                                  }
+                                } else {
+                                  t = others[idx];
+                                }
+                                if (idx == 0) {
+                                  cardWidget = Column(
+                                    children: [
+                                      const SizedBox(height: 20),
+                                      _buildCard(t),
+                                    ],
+                                  );
+                                } else if (favorites.isNotEmpty && showFavorites && idx == (1 + favorites.length + 1)) {
+                                  cardWidget = Column(
+                                    children: [
+                                      const SizedBox(height: 17),
+                                      _buildCard(t),
+                                    ],
+                                  );
+                                } else {
+                                  cardWidget = _buildCard(t);
+                                }
+                                return cardWidget;
+                                // --- ENDE ---
                               }
-                              return cardWidget;
-                              // --- ENDE PATCH ---
-                            }
-                            // Fallback
-                            return const SizedBox.shrink();
-                          }, childCount: itemCount),
-                        ),
-                      ],
+                              // Fallback
+                              return const SizedBox.shrink();
+                            }, childCount: itemCount),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -983,7 +968,10 @@ class TraeumeScreenState extends State<TraeumeScreen> {
         ),
         floatingActionButton: FloatingActionButton(
           backgroundColor: const Color(0xFFFF2C55),
-          onPressed: _openCreateSheet,
+          onPressed: () async {
+            await HapticFeedback.lightImpact();
+            _openCreateSheet();
+          },
           child: const Icon(Icons.add, color: Colors.white),
         ),
       ),
@@ -1050,6 +1038,140 @@ class TraeumeScreenState extends State<TraeumeScreen> {
 
   // Entfernt: _showAddLabelDialog und buildDriveDownloadLink
 
+  Future<void> _showTraumNoteSheet(Traum t) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // Bestehende Werte laden
+    String existingNotes = t.notes ?? '';
+    bool includeInAnalysis = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('traeume')
+          .doc(t.id)
+          .get();
+      final data = snap.data();
+      if (data != null) {
+        if (data['notes'] is String) existingNotes = (data['notes'] as String).trim();
+        if (data['notesIncludeInAnalysis'] is bool) includeInAnalysis = data['notesIncludeInAnalysis'] as bool;
+      }
+    } catch (e) {
+      debugPrint('Notes laden (Traum) fehlgeschlagen: $e');
+    }
+
+    final controller = TextEditingController(text: existingNotes);
+    bool saving = false;
+    bool flag = includeInAnalysis;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                left: 16,
+                right: 16,
+                top: 0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Handlebar(),
+                  const SizedBox(height: 8),
+                  Text(
+                    existingNotes.isEmpty ? 'Notiz hinzufügen' : 'Notiz bearbeiten',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: controller,
+                    minLines: 5,
+                    maxLines: 10,
+                    keyboardType: TextInputType.multiline,
+                    decoration: InputDecoration(
+                      hintText: 'Schreibe deine Notiz…',
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[850] : Colors.grey[200],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: flag,
+                    onChanged: (v) => setModalState(() => flag = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('In Analyse einbeziehen'),
+                    subtitle: const Text('Wenn aktiv, werden diese Notizen bei der Auswertung berücksichtigt.'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF2C55),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              setModalState(() => saving = true);
+                              try {
+                                await HapticFeedback.lightImpact();
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(userId)
+                                    .collection('traeume')
+                                    .doc(t.id)
+                                    .update({
+                                  'notes': controller.text.trim(),
+                                  'notesIncludeInAnalysis': flag,
+                                });
+                                if (mounted) Navigator.of(ctx).pop();
+                                showFlushbar('Notiz gespeichert.');
+                                setState(() {
+                                  final idx = traeume.indexWhere((e) => e.id == t.id);
+                                  if (idx != -1) {
+                                    traeume[idx] = traeume[idx].copyWith(
+                                      notes: controller.text.trim(),
+                                    );
+                                  }
+                                });
+                              } catch (e) {
+                                debugPrint('Notiz speichern (Traum) fehlgeschlagen: $e');
+                                showFlushbar('Speichern fehlgeschlagen.');
+                              } finally {
+                                if (mounted) setModalState(() => saving = false);
+                              }
+                            },
+                      child: Text(saving ? 'Speichern…' : 'Speichern', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildCard(Traum t) {
     if (t.status != ProcessingStatus.complete &&
         t.status != ProcessingStatus.none) {
@@ -1058,6 +1180,29 @@ class TraeumeScreenState extends State<TraeumeScreen> {
           DateTime.now().difference(t.timestamp) > Duration(seconds: 90);
       return Slidable(
         key: ValueKey(t.id),
+        startActionPane: ActionPane(
+          motion: const ScrollMotion(),
+          extentRatio: 0.25,
+          dismissible: DismissiblePane(
+            onDismissed: () {},
+            closeOnCancel: true,
+            confirmDismiss: () async {
+              await _showTraumNoteSheet(t);
+              return false; // nicht wirklich dismissen – nur Aktion ausführen
+            },
+          ),
+          children: [
+            SlidableAction(
+              onPressed: (_) async {
+                await _showTraumNoteSheet(t);
+              },
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              icon: Icons.edit_note,
+              label: 'Notiz',
+            ),
+          ],
+        ),
         endActionPane: ActionPane(
           motion: const ScrollMotion(),
           extentRatio: 0.25,
@@ -1158,6 +1303,29 @@ class TraeumeScreenState extends State<TraeumeScreen> {
     // If analyzed, show normal interactive card with overlay chip at top-right
     return Slidable(
       key: ValueKey(t.id),
+      startActionPane: ActionPane(
+        motion: const ScrollMotion(),
+        extentRatio: 0.25,
+        dismissible: DismissiblePane(
+          onDismissed: () {},
+          closeOnCancel: true,
+          confirmDismiss: () async {
+            await _showTraumNoteSheet(t);
+            return false;
+          },
+        ),
+        children: [
+          SlidableAction(
+            onPressed: (_) async {
+              await _showTraumNoteSheet(t);
+            },
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            icon: Icons.edit_note,
+            label: 'Notiz',
+          ),
+        ],
+      ),
       endActionPane: ActionPane(
         motion: const ScrollMotion(),
         extentRatio: 0.5,
@@ -1282,8 +1450,29 @@ class TraeumeScreenState extends State<TraeumeScreen> {
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
+                showDragHandle: false,
                 backgroundColor: Theme.of(context).cardColor,
-                builder: (_) => TraumDetailSheet(traumId: t.id),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (ctx) {
+                  return SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Handlebar(),
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: TraumDetailSheet(traumId: t.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
             child: Container(
@@ -1433,6 +1622,7 @@ extension TraumeCopyWith on Traum {
     String? storiesExamplesCitations,
     String? actionItems,
     String? transcript,
+    String? notes,
   }) {
     return Traum(
       id: id ?? this.id,
@@ -1451,6 +1641,7 @@ extension TraumeCopyWith on Traum {
           storiesExamplesCitations ?? this.storiesExamplesCitations,
       actionItems: actionItems ?? this.actionItems,
       transcript: transcript ?? this.transcript,
+      notes: notes ?? this.notes,
     );
   }
 }

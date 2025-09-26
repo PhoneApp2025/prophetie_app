@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
@@ -29,6 +30,28 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
   late Future<List<Map<String, String>>> _labelsFuture;
   // Persistent audio player to avoid restarting on rebuild
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Transcript editing state
+  final TextEditingController _transcriptController = TextEditingController();
+  bool _isEditingTranscript = false;
+  String _originalTranscript = '';
+  Timer? _transcriptDebounce;
+
+  // Notes editing state
+  final TextEditingController _notesController = TextEditingController();
+  bool _isEditingNotes = false;
+  String _originalNotes = '';
+  Timer? _notesDebounce;
+
+  final GlobalKey<_SectionState> _transcriptSectionKey = GlobalKey<_SectionState>();
+  final GlobalKey<_SectionState> _notesSectionKey = GlobalKey<_SectionState>();
+
+  // Keyboard-safe scrolling helpers
+  final ScrollController _sheetScroll = ScrollController();
+  final FocusNode _transcriptFocus = FocusNode();
+  final FocusNode _notesFocus = FocusNode();
+  final GlobalKey _transcriptFieldKey = GlobalKey();
+  final GlobalKey _notesFieldKey = GlobalKey();
 
   /// Live stream of the Prophetie document
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _prophetieStream;
@@ -71,6 +94,16 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
         dateTime = DateTime.now();
       }
       _dateController.text = DateFormat('dd.MM.yyyy').format(dateTime);
+      // Prefill transcript editor from loaded data
+      final tx = (data['transcript'] as String?)?.trim() ?? '';
+      if (tx.isNotEmpty && _transcriptController.text.isEmpty) {
+        _transcriptController.text = tx;
+      }
+      // Prefill notes editor
+      final nx = (data['notes'] as String?)?.trim() ?? '';
+      if (nx.isNotEmpty && _notesController.text.isEmpty) {
+        _notesController.text = nx;
+      }
     }
   }
 
@@ -80,7 +113,112 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
     _creatorController.dispose();
     _dateController.dispose();
     _audioPlayer.dispose();
+    _transcriptDebounce?.cancel();
+    _transcriptController.dispose();
+    _notesDebounce?.cancel();
+    _notesController.dispose();
+    _sheetScroll.dispose();
+    _transcriptFocus.dispose();
+    _notesFocus.dispose();
     super.dispose();
+  }
+
+  void _startEditingTranscript(String current) {
+    setState(() {
+      _originalTranscript = current;
+      _transcriptController.text = current;
+      _isEditingTranscript = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Falls die Section noch nicht offen ist, öffnen
+      _transcriptSectionKey.currentState?.expand();
+      // Fokus setzen
+      FocusScope.of(context).requestFocus(_transcriptFocus);
+      // Sichtbar machen (über Tastatur hinaus)
+      final ctx = _transcriptFieldKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 250),
+          alignment: 0.1,
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _saveTranscript() async {
+    final text = _transcriptController.text.trim();
+    try {
+      await _docRef().update({'transcript': text});
+      if (!mounted) return;
+      setState(() {
+        _isEditingTranscript = false;
+      });
+      showFlushbar('Transkript gespeichert.');
+    } catch (e) {
+      debugPrint('Fehler beim Speichern des Transkripts: $e');
+      showFlushbar('Speichern fehlgeschlagen. Versuche es erneut.');
+    }
+  }
+
+  void _onTranscriptChanged(String value) {
+    // Debounced autosave while editing
+    _transcriptDebounce?.cancel();
+    _transcriptDebounce = Timer(const Duration(milliseconds: 700), () async {
+      try {
+        await _docRef().update({'transcript': value.trim()});
+      } catch (e) {
+        debugPrint('Autosave-Fehler Transkript: $e');
+      }
+    });
+  }
+
+  void _startEditingNotes(String current) {
+    setState(() {
+      _originalNotes = current;
+      _notesController.text = current;
+      _isEditingNotes = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notesSectionKey.currentState?.expand();
+      FocusScope.of(context).requestFocus(_notesFocus);
+      final ctx = _notesFieldKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 250),
+          alignment: 0.1,
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _saveNotes() async {
+    final text = _notesController.text.trim();
+    try {
+      await _docRef().update({'notes': text});
+      if (!mounted) return;
+      setState(() {
+        _isEditingNotes = false;
+      });
+      showFlushbar('Notizen gespeichert.');
+    } catch (e) {
+      debugPrint('Fehler beim Speichern der Notizen: $e');
+      showFlushbar('Speichern fehlgeschlagen. Versuche es erneut.');
+    }
+  }
+
+  void _onNotesChanged(String value) {
+    _notesDebounce?.cancel();
+    _notesDebounce = Timer(const Duration(milliseconds: 700), () async {
+      try {
+        await _docRef().update({'notes': value.trim()});
+      } catch (e) {
+        debugPrint('Autosave-Fehler Notizen: $e');
+      }
+    });
   }
 
   /// Robustly render a field that may be String or List or null.
@@ -174,6 +312,16 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
           _dateController.text = DateFormat('dd.MM.yyyy').format(dateTime);
         }
 
+        final liveTranscript = (data['transcript'] as String?)?.trim() ?? '';
+        if (liveTranscript.isNotEmpty && _transcriptController.text.isEmpty) {
+          _transcriptController.text = liveTranscript;
+        }
+        final liveNotes = (data['notes'] as String?)?.trim() ?? '';
+        if (!_isEditingNotes && (liveNotes.isNotEmpty || _notesController.text.isNotEmpty) &&
+            _notesController.text != liveNotes) {
+          _notesController.text = liveNotes;
+        }
+
         // Bottom-sheet UI with sticky action bar
         return FractionallySizedBox(
           heightFactor: 0.85,
@@ -184,6 +332,7 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: SingleChildScrollView(
+                      controller: _sheetScroll,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,37 +353,43 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                padding: const EdgeInsets.all(4),
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.edit),
-                                onPressed: () async {
-                                  final result = await _openEditBottomSheet(
-                                    context,
-                                    data,
-                                  );
-                                  if (result != null) {
-                                    await _docRef().update(result);
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                padding: const EdgeInsets.all(4),
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.refresh),
-                                tooltip: 'Prophetie neu analysieren',
-                                onPressed: () async {
-                                  await _reanalyze(context, data);
-                                },
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                                    icon: const Icon(Icons.edit, size: 20),
+                                    onPressed: () async {
+                                      final result = await _openEditBottomSheet(
+                                        context,
+                                        data,
+                                      );
+                                      if (result != null) {
+                                        await _docRef().update(result);
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                                    icon: const Icon(Icons.refresh, size: 20),
+                                    tooltip: 'Prophetie neu analysieren',
+                                    onPressed: () async {
+                                      await _reanalyze(context, data);
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Text(
                             "Gegeben von: ${_creatorController.text.isNotEmpty ? _creatorController.text : (data['creatorName'] ?? 'Unbekannt')}",
                             style: const TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
+                              height: 1.2,
                             ),
                           ),
                           Text(
@@ -246,26 +401,17 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                             style: const TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
+                              height: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 8),
+                          Divider(
+                            thickness: 0.8,
+                            color: Theme.of(context).dividerColor.withOpacity(0.25),
+                          ),
+                          const SizedBox(height: 12),
 
-                          // Audio player if present
-                          if (((data['audioUrl'] as String?)?.isNotEmpty ==
-                                  true) ||
-                              ((data['driveAudioId'] as String?)?.isNotEmpty ==
-                                  true) ||
-                              ((data['filePath'] as String?)?.isNotEmpty ==
-                                  true))
-                            _ProphetieAudioPlayer(
-                              audioPath:
-                                  (data['audioUrl'] as String?) ??
-                                  (data['driveAudioId'] as String?) ??
-                                  (data['filePath'] as String)!,
-                              audioPlayer: _audioPlayer,
-                              title: data['title'] as String? ?? '',
-                            ),
-                          const SizedBox(height: 16),
+                          // Audio player removed from scroll area
 
                           // Collapsible sections
                           _Section(
@@ -312,45 +458,135 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                           ),
 
                           _Section(
+                            key: _transcriptSectionKey,
                             title: '🎧 Transkript',
-                            child: _TranscriptSection(
-                              prophetie: Prophetie(
-                                id: widget.prophetieId,
-                                labels: List<String>.from(data['labels'] ?? []),
-                                isFavorit: data['isFavorit'] as bool? ?? false,
-                                timestamp: data['timestamp'] is Timestamp
-                                    ? (data['timestamp'] as Timestamp).toDate()
-                                    : DateTime.parse(
-                                        data['timestamp'] as String,
-                                      ),
-                                filePath:
-                                    data['audioUrl'] as String? ??
-                                    data['filePath'] as String?,
-                                creatorName: data['creatorName'] as String?,
-                                mainPoints: data['mainPoints'] as String?,
-                                summary: data['summary'] as String?,
-                                verses: data['verses'] as String?,
-                                questions: data['questions'] as String?,
-                                similar: data['similar'] as String?,
-                                title: data['title'] as String?,
-                                storiesExamplesCitations:
-                                    data['storiesExamplesCitations'] as String?,
-                                actionItems: data['actionItems'] as String?,
-                                transcript: data['transcript'] as String?,
-                              ),
-                            ),
                             initiallyExpanded: false,
+                            action: _isEditingTranscript
+                                ? IconButton(
+                                    icon: const Icon(Icons.check),
+                                    iconSize: 20,
+                                    tooltip: 'Speichern',
+                                    onPressed: _saveTranscript,
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    iconSize: 20,
+                                    tooltip: 'Bearbeiten',
+                                    onPressed: () {
+                                      _transcriptSectionKey.currentState?.expand();
+                                      _startEditingTranscript(
+                                        (data['transcript'] as String?)?.trim() ?? '',
+                                      );
+                                    },
+                                  ),
+                            child: Builder(builder: (context) {
+                              final transcriptText = (data['transcript'] as String?)?.trim() ?? '';
+                              // Keep local controller in sync when not editing
+                              if (!_isEditingTranscript && transcriptText.isNotEmpty &&
+                                  _transcriptController.text != transcriptText) {
+                                _transcriptController.text = transcriptText;
+                              }
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_isEditingTranscript)
+                                    TextFormField(
+                                      key: _transcriptFieldKey,
+                                      focusNode: _transcriptFocus,
+                                      controller: _transcriptController,
+                                      onChanged: _onTranscriptChanged,
+                                      minLines: 6,
+                                      maxLines: null,
+                                      keyboardType: TextInputType.multiline,
+                                      decoration: InputDecoration(
+                                        hintText: 'Transkript hier bearbeiten…',
+                                        filled: true,
+                                        fillColor: Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.grey[800]
+                                            : Colors.grey[100],
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    SelectableText(
+                                      transcriptText.isNotEmpty ? transcriptText : 'Kein Transkript vorhanden.',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                ],
+                              );
+                            }),
+                          ),
+                          _Section(
+                            key: _notesSectionKey,
+                            title: '🗒️ Notizen',
+                            initiallyExpanded: true,
+                            action: _isEditingNotes
+                                ? IconButton(
+                                    icon: const Icon(Icons.check),
+                                    iconSize: 20,
+                                    tooltip: 'Speichern',
+                                    onPressed: _saveNotes,
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    iconSize: 20,
+                                    tooltip: 'Bearbeiten',
+                                    onPressed: () {
+                                      _notesSectionKey.currentState?.expand();
+                                      _startEditingNotes(
+                                        (data['notes'] as String?)?.trim() ?? '',
+                                      );
+                                    },
+                                  ),
+                            child: Builder(builder: (context) {
+                              final notesText = (data['notes'] as String?)?.trim() ?? '';
+                              if (!_isEditingNotes && _notesController.text != notesText) {
+                                _notesController.text = notesText;
+                              }
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (_isEditingNotes)
+                                    TextFormField(
+                                      key: _notesFieldKey,
+                                      focusNode: _notesFocus,
+                                      controller: _notesController,
+                                      onChanged: _onNotesChanged,
+                                      minLines: 4,
+                                      maxLines: null,
+                                      keyboardType: TextInputType.multiline,
+                                      decoration: InputDecoration(
+                                        hintText: 'Notizen hier bearbeiten…',
+                                        filled: true,
+                                        fillColor: Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.grey[800]
+                                            : Colors.grey[100],
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    SelectableText(
+                                      notesText.isNotEmpty ? notesText : 'Keine Notizen vorhanden.',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                ],
+                              );
+                            }),
                           ),
 
-                          const SizedBox(height: 12),
-                          const Text(
-                            "🏷️ Label anpassen",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
                           const SizedBox(height: 8),
+                          Divider(
+                            thickness: 0.8,
+                            color: Theme.of(context).dividerColor.withOpacity(0.25),
+                          ),
+                          const SizedBox(height: 12),
+                          
                           FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             future: FirebaseFirestore.instance
                                 .collection('users')
@@ -432,15 +668,71 @@ class _ProphetieDetailSheetState extends State<ProphetieDetailSheet> {
                               );
                             },
                           ),
-                          const SizedBox(height: 24),
+                          SizedBox(height: 24 + MediaQuery.of(context).viewInsets.bottom),
                         ],
                       ),
                     ),
                   ),
                 ),
 
-                // Sticky action bar
-                const SizedBox.shrink(),
+                // Sticky mini audio player
+                Builder(builder: (context) {
+                  final hasAudio = ((data['audioUrl'] as String?)?.isNotEmpty == true) ||
+                      ((data['driveAudioId'] as String?)?.isNotEmpty == true) ||
+                      ((data['filePath'] as String?)?.isNotEmpty == true);
+                  if (!hasAudio) return const SizedBox.shrink();
+                  final audioPath = (data['audioUrl'] as String?) ??
+                      (data['driveAudioId'] as String?) ??
+                      (data['filePath'] as String)!;
+                  return ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: Theme.of(context).brightness == Brightness.dark
+                                ? [
+                                    const Color(0xCC121212),
+                                    const Color(0xCC1A1A1A),
+                                  ]
+                                : [
+                                    const Color(0xCCFFFFFF),
+                                    const Color(0xCCF7F7F7),
+                                  ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border(
+                            top: BorderSide(
+                              color: Theme.of(context).dividerColor.withOpacity(0.16),
+                              width: 0.8,
+                            ),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, -8),
+                            ),
+                          ],
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: _ProphetieAudioPlayer(
+                              audioPath: audioPath,
+                              audioPlayer: _audioPlayer,
+                              title: data['title'] as String? ?? '',
+                              isMini: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -737,10 +1029,12 @@ class _ProphetieAudioPlayer extends StatefulWidget {
   final String audioPath;
   final AudioPlayer audioPlayer;
   final String title;
+  final bool isMini;
   const _ProphetieAudioPlayer({
     required this.audioPath,
     required this.audioPlayer,
     this.title = '',
+    this.isMini = false,
     Key? key,
   }) : super(key: key);
 
@@ -823,6 +1117,9 @@ class _ProphetieAudioPlayerState extends State<_ProphetieAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isMini) {
+      return _buildMini(context);
+    }
     if (_error != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,6 +1241,132 @@ class _ProphetieAudioPlayerState extends State<_ProphetieAudioPlayer> {
     );
   }
 
+  Widget _buildMini(BuildContext context) {
+    return StreamBuilder<PlayerState>(
+      stream: widget.audioPlayer.playerStateStream,
+      builder: (context, snapshot) {
+        final playerState = snapshot.data;
+        final playing = playerState?.playing ?? false;
+        return SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              // Play/Pause as soft capsule button
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IconButton(
+                  iconSize: 22,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                  icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                  onPressed: () {
+                    if (playing) {
+                      widget.audioPlayer.pause();
+                    } else {
+                      widget.audioPlayer.play();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Optional title (truncated) for context
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.title.isNotEmpty)
+                      Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.9),
+                        ),
+                      ),
+                    StreamBuilder<Duration?>(
+                      stream: widget.audioPlayer.durationStream,
+                      builder: (context, durationSnapshot) {
+                        final duration = durationSnapshot.data ?? Duration.zero;
+                        return StreamBuilder<Duration>(
+                          stream: widget.audioPlayer.positionStream,
+                          builder: (context, posSnapshot) {
+                            final pos = posSnapshot.data ?? Duration.zero;
+                            return SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                                activeTrackColor: const Color(0xFFFF2D55),
+                                inactiveTrackColor: const Color(0xFFFF2D55).withOpacity(0.28),
+                                thumbColor: const Color(0xFFFF2D55),
+                              ),
+                              child: Slider(
+                                min: 0,
+                                max: duration.inMilliseconds.toDouble().clamp(0.0, double.infinity),
+                                value: pos.inMilliseconds
+                                    .clamp(0, duration.inMilliseconds)
+                                    .toDouble(),
+                                onChanged: (value) {
+                                  widget.audioPlayer.seek(Duration(milliseconds: value.toInt()));
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Speed chip
+              GestureDetector(
+                onTap: () async {
+                  const speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
+                  final currentIndex = speeds.indexOf(_playbackSpeed);
+                  final nextIndex = (currentIndex + 1) % speeds.length;
+                  final nextSpeed = speeds[nextIndex];
+                  final wasPlaying = widget.audioPlayer.playing;
+                  final position = widget.audioPlayer.position;
+                  setState(() { _playbackSpeed = nextSpeed; });
+                  await widget.audioPlayer.setSpeed(nextSpeed);
+                  await widget.audioPlayer.seek(position);
+                  if (wasPlaying) widget.audioPlayer.play();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.06)
+                        : Colors.black.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_playbackSpeed.toStringAsFixed(_playbackSpeed.truncateToDouble() == _playbackSpeed ? 0 : 2)}x',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     // Important: Do NOT dispose the passed-in AudioPlayer here – owner manages lifecycle.
@@ -959,34 +1382,6 @@ class _ProphetieAudioPlayerState extends State<_ProphetieAudioPlayer> {
   }
 }
 
-/// Widget für Transkript-Anzeige ohne Toggle. Zeigt immer den vollständigen Text.
-class _TranscriptSection extends StatelessWidget {
-  final Prophetie prophetie;
-  const _TranscriptSection({required this.prophetie, Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final rawTranscript = prophetie.transcript;
-    final transcript = (rawTranscript != null && rawTranscript.isNotEmpty)
-        ? rawTranscript
-        : (prophetie.transcript ?? '');
-
-    if (transcript.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 4),
-        Text(
-          transcript,
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
-}
 
 bool isSameDate(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
@@ -996,11 +1391,14 @@ class _Section extends StatefulWidget {
   final String title;
   final Widget child;
   final bool initiallyExpanded;
+  final Widget? action;
   const _Section({
+    Key? key,
     required this.title,
     required this.child,
     this.initiallyExpanded = true,
-  });
+    this.action,
+  }) : super(key: key);
 
   @override
   State<_Section> createState() => _SectionState();
@@ -1008,6 +1406,13 @@ class _Section extends StatefulWidget {
 
 class _SectionState extends State<_Section> {
   late bool _expanded;
+
+  void expand() {
+    if (!_expanded) {
+      setState(() => _expanded = true);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1016,17 +1421,16 @@ class _SectionState extends State<_Section> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() => _expanded = !_expanded),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header (flat)
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: SizedBox(
+            height: 40,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 0),
               child: Row(
                 children: [
                   Expanded(
@@ -1034,28 +1438,39 @@ class _SectionState extends State<_Section> {
                       widget.title,
                       style: const TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                  if (widget.action != null) widget.action!,
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Center(
+                      child: AnimatedRotation(
+                        duration: const Duration(milliseconds: 200),
+                        turns: _expanded ? 0.5 : 0.0,
+                        child: const Icon(Icons.expand_more, size: 20),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: widget.child,
-            ),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 180),
+        ),
+        // Body (flat)
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+            child: widget.child,
           ),
-        ],
-      ),
+          crossFadeState:
+              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 200),
+        ),
+      ],
     );
   }
 }

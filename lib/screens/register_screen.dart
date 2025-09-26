@@ -11,6 +11,10 @@ import 'package:prophetie_app/screens/auth_gate.dart';
 import 'package:prophetie_app/services/auth_service.dart';
 import 'package:prophetie_app/main.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+const String kTermsVersion = '2025-06-30';
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -20,11 +24,32 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen>
     with SingleTickerProviderStateMixin {
+  DateTime? _acceptedAt;
   bool _accepted = false;
   bool _isLoading = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  Future<void> _persistPreConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('preConsentAccepted', true);
+    await prefs.setString('preConsentVersion', kTermsVersion);
+    await prefs.setString('preConsentAcceptedAt', DateTime.now().toUtc().toIso8601String());
+  }
+
+  Future<void> _recordConsentToUser(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final preAt = prefs.getString('preConsentAcceptedAt');
+    final preVersion = prefs.getString('preConsentVersion');
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'termsAccepted': true,
+      'termsVersion': preVersion ?? kTermsVersion,
+      'termsAcceptedAtClient': preAt ?? _acceptedAt?.toUtc().toIso8601String(),
+      'termsAcceptedAtServer': FieldValue.serverTimestamp(),
+      'consentSource': 'register_screen',
+    }, SetOptions(merge: true));
+  }
+
 
   @override
   void initState() {
@@ -70,11 +95,9 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   void _showDatenschutz() async {
     final url = Uri.parse(
-      'https://www.notion.so/Datenschutz-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
+      'https://www.notion.so/Terms-of-Use-Privacy-Notice-21c017fc7cf7802ba0a9e2b7680a8b4a?source=copy_link',
     );
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.inAppWebView);
-    }
+    await launchUrl(url, mode: LaunchMode.inAppWebView);
   }
 
   Future<void> _signInWithGoogle() async {
@@ -99,6 +122,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       final user = userCredential.user;
       if (user != null) {
+        await _recordConsentToUser(user.uid);
         await AuthService().handlePostLogin();
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/authGate');
@@ -137,6 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       final user = userCredential.user;
       if (user != null) {
+        await _recordConsentToUser(user.uid);
         await AuthService().handlePostLogin();
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/authGate');
@@ -340,9 +365,20 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   Checkbox(
                                     activeColor: Color(0xFFFF2D55),
                                     value: _accepted,
-                                    onChanged: (val) => setState(
-                                      () => _accepted = val ?? false,
-                                    ),
+                                    onChanged: (val) async {
+                                      final newVal = val ?? false;
+                                      setState(() {
+                                        _accepted = newVal;
+                                        if (newVal) {
+                                          _acceptedAt = DateTime.now();
+                                        } else {
+                                          _acceptedAt = null;
+                                        }
+                                      });
+                                      if (newVal) {
+                                        await _persistPreConsent();
+                                      }
+                                    },
                                   ),
                                   const SizedBox(width: 8),
                                   const Flexible(
@@ -365,7 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 TextButton(
                                   onPressed: _showDatenschutz,
                                   child: const Text(
-                                    "Datenschutz",
+                                    "Nutzungsbedingungen & Datenschutz",
                                     style: TextStyle(color: Colors.white60),
                                   ),
                                 ),

@@ -100,6 +100,7 @@ STIL- UND PERSPEKTIVREGELN (WICHTIG):
 - Biblisch fundiert (Bezüge auf NGÜ/SCH2000, keine langen Zitatblöcke außer in `scriptureReferences`).
 - Interpretiere **ausschließlich** das, was im Transkript steht. Erfinde nichts hinzu.
 - Klare Struktur, **ausschließlich JSON-Output**, keine Erklärtexte, kein Markdown.
+- **WICHTIG: NOTIZEN EINBEZIEHEN**: Wenn im Transkript ein Abschnitt "[NOTIZEN FÜR DIE ANALYSE]" vorhanden ist, behandle diese Notizen als zusätzliche Kontextinformationen des Nutzers. Beziehe sie in deine Deutung ein und wenn relevant, spiegele sie **knapp** in `mainPoints` und/oder `summary` (z. B. als Beobachtung, Hinweis oder Kontext). Ignoriere die Notizen nicht.
 
 Unter "storiesExamplesCitations" bitte jeweils zwei **kurze** narrative biblische Beispiele (keine reinen Verslisten).
 Fehlende Felder stets sinnvoll füllen (z. B. "Keine passenden biblischen Geschichten gefunden").
@@ -202,7 +203,35 @@ Future<void> analyzeAndSaveProphetie({
   }
   _inProgressProphetienAnalyses.add(firestoreDocId);
   try {
-    final ai = await analyzeProphetieContentWithQwenAI(transcript);
+    // Load potential notes and the include flag to augment transcript
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    String effectiveTranscript = transcript;
+    bool notesWereIncluded = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('prophetien')
+          .doc(firestoreDocId)
+          .get();
+      final data = snap.data();
+      final includeNotes = (data?['notesIncludeInAnalysis'] as bool?) ?? false;
+      final notes = (data?['notes'] as String?)?.trim() ?? '';
+      if (includeNotes && notes.isNotEmpty) {
+        notesWereIncluded = true;
+        // Append notes with a clear marker so the model can treat them as context
+        effectiveTranscript = (
+          transcript.trim().isEmpty
+              ? notes
+              : transcript.trim() + "\n\n[NOTIZEN FÜR DIE ANALYSE]\n" + notes
+        );
+      }
+    } catch (e) {
+      // If fetching notes fails, continue with the original transcript
+      print('Hinweis: Notes konnten nicht geladen werden: $e');
+    }
+
+    final ai = await analyzeProphetieContentWithQwenAI(effectiveTranscript);
     if (ai != null) {
       await updateProphetieAnalysisInFirestore(firestoreDocId, ai);
       await FirebaseFirestore.instance
@@ -211,6 +240,15 @@ Future<void> analyzeAndSaveProphetie({
           .collection('prophetien')
           .doc(firestoreDocId)
           .update({'isAnalyzed': true});
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .collection('prophetien')
+          .doc(firestoreDocId)
+          .set({
+            'notesIncludedInLastAnalysis': notesWereIncluded,
+            'lastAnalyzedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
       if (onReload != null) await onReload();
     }
   } finally {

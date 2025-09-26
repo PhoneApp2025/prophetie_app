@@ -507,6 +507,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (googleUser == null) {
         return; // Abbruch
       }
+      // Nur Login erlauben: Prüfe, ob für diese E-Mail bereits ein Account existiert
+      final methods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(googleUser.email);
+      if (methods.isEmpty) {
+        if (mounted) {
+          showFlushbar('Kein verknüpfter Account gefunden. Bitte registriere dich zuerst.');
+        }
+        return; // Blockiere das Erstellen eines neuen Accounts via Google
+      }
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -514,6 +522,19 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
       await FirebaseAuth.instance.signInWithCredential(credential);
+      // Firestore double-check: user doc existiert?
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        if (!snap.exists) {
+          // Sicherheitsnetz: User-Datensatz fehlt → Logout und Hinweis
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            showFlushbar('Dein Konto ist noch nicht vollständig eingerichtet. Bitte registriere dich zuerst.');
+          }
+          return;
+        }
+      }
       await AuthService().handlePostLogin();
       if (mounted) {
         Navigator.of(
@@ -557,6 +578,20 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      // Firestore double-check: user doc existiert?
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final snap = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        if (!snap.exists) {
+          // Blockiere "Sign up" über Apple; nur Login erlaubt
+          try { await FirebaseAuth.instance.currentUser?.delete(); } catch (_) {}
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            showFlushbar('Kein verknüpfter Account gefunden. Bitte registriere dich zuerst.');
+          }
+          return;
+        }
+      }
       await AuthService().handlePostLogin();
       if (mounted) {
         Navigator.of(

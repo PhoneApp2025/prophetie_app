@@ -26,21 +26,111 @@ import 'services/sharing_intent_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'services/purchase_service.dart';
+import 'services/insight_service.dart';
+import 'services/metrics_service.dart';
+
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<Locale?> localeNotifier = ValueNotifier<Locale?>(null);
 
+/// ThemeExtension für eine einheitliche Handlebar (Design-Einstellungen).
+@immutable
+class HandlebarTheme extends ThemeExtension<HandlebarTheme> {
+  final double trackWidth;
+  final double barWidth;
+  final double barHeight;
+  final Color color;
+
+  const HandlebarTheme({
+    this.trackWidth = 120,
+    this.barWidth = 44,
+    this.barHeight = 3,
+    this.color = const Color(0x33000000), // Schwarz 20% (0x33 alpha)
+  });
+
+  @override
+  HandlebarTheme copyWith({
+    double? trackWidth,
+    double? barWidth,
+    double? barHeight,
+    Color? color,
+  }) {
+    return HandlebarTheme(
+      trackWidth: trackWidth ?? this.trackWidth,
+      barWidth: barWidth ?? this.barWidth,
+      barHeight: barHeight ?? this.barHeight,
+      color: color ?? this.color,
+    );
+  }
+
+  @override
+  HandlebarTheme lerp(ThemeExtension<HandlebarTheme>? other, double t) {
+    if (other is! HandlebarTheme) return this;
+    return HandlebarTheme(
+      trackWidth: lerpDouble(trackWidth, other.trackWidth, t) ?? trackWidth,
+      barWidth: lerpDouble(barWidth, other.barWidth, t) ?? barWidth,
+      barHeight: lerpDouble(barHeight, other.barHeight, t) ?? barHeight,
+      color: Color.lerp(color, other.color, t) ?? color,
+    );
+  }
+}
+
+/// Einheitliches Handlebar-Widget, das seine Werte aus dem Theme bezieht.
+class Handlebar extends StatelessWidget {
+  /// Optionales Override – wenn null, werden Theme-Werte genutzt.
+  final double? trackWidth;
+  final double? barWidth;
+  final double? barHeight;
+  final Color? color;
+
+  const Handlebar({
+    super.key,
+    this.trackWidth,
+    this.barWidth,
+    this.barHeight,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context).extension<HandlebarTheme>() ?? const HandlebarTheme();
+    final w = trackWidth ?? theme.trackWidth;
+    final bw = barWidth ?? theme.barWidth;
+    final bh = barHeight ?? theme.barHeight;
+    final c = color ?? theme.color;
+
+    return Center(
+      child: SizedBox(
+        width: w,
+        height: 20,
+        child: Center(
+          child: Container(
+            width: bw,
+            height: bh,
+            decoration: BoxDecoration(
+              color: c,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Shows a Flushbar snackbar at the top of the screen.
 void showFlushbar(String message) {
+  final ctx = navigatorKey.currentContext;
+  if (ctx == null) return; // Navigator noch nicht bereit
   Flushbar(
     message: message,
     flushbarPosition: FlushbarPosition.TOP,
     margin: const EdgeInsets.only(top: 16, left: 16, right: 16),
     borderRadius: BorderRadius.circular(12),
     duration: const Duration(seconds: 3),
-  )..show(navigatorKey.currentContext!);
+  )..show(ctx);
 }
 
 Future<void> main() async {
@@ -101,13 +191,26 @@ Future<void> main() async {
     ),
   );
 
-  // SharingIntent NACH runApp initialisieren
+  // Run client-side Insight housekeeping whenever a user is logged in
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null) {
+      // Create/update today's insights and clean up expired items
+      InsightsService.ensureDailyInsights(uid: user.uid);
+      // Adjust retentionDays as you like (e.g., 14, 30, 90)
+      InsightsService.cleanupOldInsights(uid: user.uid, retentionDays: 30);
+      // Rebuild metrics (counts for traums/prophetien) on app start/login
+      MetricsService.rebuildFromExisting(uid: user.uid);
+    }
+  });
+
+  // Initialize SharingIntentService once after the first frame
   WidgetsBinding.instance.addPostFrameCallback((_) {
     SharingIntentService.init();
   });
+
+  // ❌ KEIN SharingIntentService.init() mehr hier unten
 }
 
-/// Widget to guard subscription state
 class SubscriptionGate extends StatefulWidget {
   final Widget child;
   const SubscriptionGate({super.key, required this.child});
@@ -217,7 +320,7 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.system;
   StreamSubscription? _linkSub;
 
@@ -239,6 +342,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadThemeMode();
     _handleInitialDeepLink();
     _linkSub = linkStream.listen((String? link) {
@@ -250,6 +354,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     SharingIntentService.dispose();
     _linkSub?.cancel();
     super.dispose();
@@ -293,6 +398,15 @@ class _MyAppState extends State<MyApp> {
           builder: (_) => ImportScreen(type: type, id: id, creator: creator),
         ),
       );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Falls iOS uns nur in den Vordergrund holt, aber der Stream kein Event liefert,
+      // stellen wir sicher, dass der SharingIntentService bereit ist.
+      SharingIntentService.init(); // tut nichts, wenn bereits initialisiert
     }
   }
 
@@ -393,6 +507,14 @@ class _MyAppState extends State<MyApp> {
                   ),
                   hintStyle: TextStyle(color: Colors.grey[600]),
                 ),
+                extensions: <ThemeExtension<dynamic>>[
+                  const HandlebarTheme(
+                    trackWidth: 120,
+                    barWidth: 44,
+                    barHeight: 3,
+                    color: Color(0x33000000), // Schwarz 20%
+                  ),
+                ],
               ),
               darkTheme: ThemeData(
                 fontFamily: 'Poppins',
@@ -470,6 +592,14 @@ class _MyAppState extends State<MyApp> {
                   ),
                   hintStyle: TextStyle(color: Colors.grey[400]),
                 ),
+                extensions: <ThemeExtension<dynamic>>[
+                  HandlebarTheme(
+                    trackWidth: 120,
+                    barWidth: 44,
+                    barHeight: 3,
+                    color: Colors.white.withOpacity(0.25), // leicht stärker für Dark
+                  ),
+                ],
               ),
               themeMode: currentMode,
               home: const AuthGate(),

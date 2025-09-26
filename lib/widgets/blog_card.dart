@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/open_blog_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter/services.dart';
 
 class BlogCard extends StatefulWidget {
   final String id;
@@ -47,6 +48,28 @@ class _AppImageCache {
 }
 
 class _BlogCardState extends State<BlogCard> {
+  // UI state for hover/keyboard focus highlighting
+  bool _hovering = false;
+  void _openBlog() {
+    // Subtiles haptisches Feedback auf unterstützten Geräten
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OpenBlogScreen(
+          id: widget.id,
+          title: widget.title,
+          description: widget.description,
+          imageUrl: widget.imageUrl,
+          category: widget.category,
+          author: widget.author,
+          datum: widget.datum,
+          link: widget.link,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,205 +102,207 @@ class _BlogCardState extends State<BlogCard> {
     final bool featured = widget.isFeatured;
     const double radius = 16;
     final double thumbWidth =
-        MediaQuery.of(context).size.width * 0.28; // ~28% der Screenbreite
+        MediaQuery.of(context).size.width * 0.24; // ~24% der Screenbreite
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OpenBlogScreen(
-              id: widget.id,
-              title: widget.title,
-              description: widget.description,
-              imageUrl: widget.imageUrl,
-              category: widget.category,
-              author: widget.author,
-              datum: widget.datum,
-              link: widget.link,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [theme.cardColor, theme.cardColor.withOpacity(0.92)],
-          ),
-          border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thumbnail links: feste Breite, quadratisch
-            SizedBox(
-              width: thumbWidth,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(radius),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: CachedNetworkImage(
-                          imageUrl: widget.imageUrl,
-                          cacheKey: widget.id, // stabile ID statt wechselnder, signierter URLs
-                          cacheManager: _AppImageCache.instance,
-                          fit: BoxFit.cover,
-                          fadeInDuration: const Duration(milliseconds: 150),
-                          fadeOutDuration: const Duration(milliseconds: 150),
-                          useOldImageOnUrlChange: true,
-                          placeholderFadeInDuration: const Duration(milliseconds: 100),
-                          placeholder: (context, url) => Container(
-                            color: theme.dividerColor.withOpacity(0.15),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: theme.dividerColor.withOpacity(0.15),
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (featured)
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF2C55).withOpacity(0.95),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'FEATURED',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+    return Semantics(
+      button: true,
+      label: '${widget.title} – '
+          '${widget.category.isNotEmpty ? widget.category + ', ' : ''}'
+          'von ${widget.author}, veröffentlicht am ${widget.datum}. Öffnen',
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        autofocus: false,
+        onShowFocusHighlight: (v) => setState(() => _hovering = v || _hovering),
+        onShowHoverHighlight: (v) => setState(() => _hovering = v),
+        onFocusChange: (_) {},
+        shortcuts: const <ShortcutActivator, Intent>{
+          // Enter/Space als Aktivierung
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (intent) {
+            _openBlog();
+            return null;
+          }),
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: AnimatedScale(
+            scale: _hovering ? 1.03 : 1,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(radius),
+              onTap: _openBlog,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [theme.cardColor, theme.cardColor.withOpacity(0.92)],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Text rechts: 3 Zonen ohne Spacer/Expanded im Inneren
-            Expanded(
-              child: SizedBox(
-                height: thumbWidth, // rechte Spalte an Bildhöhe koppeln
-                child: Column(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Kategorie oben
-                    if (widget.category.isNotEmpty)
-                      Text(
-                        widget.category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(
-                            0.7,
+                    // Thumbnail links: feste Breite, quadratisch
+                    SizedBox(
+                      width: thumbWidth,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(radius),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: CachedNetworkImage(
+                                  imageUrl: widget.imageUrl,
+                                  cacheKey: widget.id, // stabile ID statt wechselnder, signierter URLs
+                                  cacheManager: _AppImageCache.instance,
+                                  fit: BoxFit.cover,
+                                  fadeInDuration: const Duration(milliseconds: 150),
+                                  fadeOutDuration: const Duration(milliseconds: 150),
+                                  useOldImageOnUrlChange: true,
+                                  placeholderFadeInDuration: const Duration(milliseconds: 100),
+                                  placeholder: (context, url) => Container(
+                                    color: theme.dividerColor.withOpacity(0.15),
+                                  ),
+                                  errorWidget: (context, url, error) => Container(
+                                    color: theme.dividerColor.withOpacity(0.15),
+                                    child: const Icon(
+                                      Icons.image_not_supported,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (featured)
+                                Positioned(
+                                  top: 6,
+                                  left: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF2C55).withOpacity(0.95),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      'FEATURED',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                          fontWeight: FontWeight.w600,
                         ),
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    // Titel mittig (dank spaceBetween automatisch in der Mitte)
-                    Text(
-                      widget.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontSize: featured ? 16 : 16,
-                        fontWeight: FontWeight.w800,
                       ),
                     ),
 
-                    // Meta unten
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: const Color(
-                              0xFFFF2C55,
-                            ).withOpacity(0.15),
-                            child: Text(
-                              _initials(widget.author),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFFF2C55),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              widget.author,
-                              maxLines: 1,
+                    const SizedBox(width: 12),
+
+                    // Text rechts: 3 Zonen ohne Spacer/Expanded im Inneren
+                    Expanded(
+                      child: SizedBox(
+                        height: thumbWidth, // rechte Spalte an Bildhöhe koppeln
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Kategorie oben
+                            if (widget.category.isNotEmpty)
+                              Text(
+                                widget.category,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.textTheme.bodySmall?.color?.withOpacity(
+                                    0.7,
+                                  ),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+
+                            // Titel mittig (dank spaceBetween automatisch in der Mitte)
+                            Text(
+                              widget.title,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontSize: isPhone ? 12 : theme.textTheme.bodySmall?.fontSize,
-                                color: theme.textTheme.bodySmall?.color
-                                    ?.withOpacity(0.75),
-                                fontWeight: FontWeight.w500,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontSize: featured ? 16 : 16,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '·',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color
-                                  ?.withOpacity(0.75),
+
+                            // Meta unten
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      widget.author,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontSize: isPhone ? 12 : theme.textTheme.bodySmall?.fontSize,
+                                        color: theme.textTheme.bodySmall?.color
+                                            ?.withOpacity(0.75),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '·',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.textTheme.bodySmall?.color
+                                          ?.withOpacity(0.75),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.datum,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.textTheme.bodySmall?.color
+                                          ?.withOpacity(0.75),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            widget.datum,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color
-                                  ?.withOpacity(0.75),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
