@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'package:prophetie_app/screens/send_recordings_screen.dart';
-import 'package:prophetie_app/screens/uebereinstimmungen.dart';
+import 'package:prophetie_app/screens/uebereinstimmungen_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../screens/saved_favorites_screen.dart';
