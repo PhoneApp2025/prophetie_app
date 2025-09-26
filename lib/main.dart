@@ -18,7 +18,6 @@ import 'package:provider/provider.dart';
 import 'package:prophetie_app/providers/prophetie_provider.dart';
 import 'package:prophetie_app/providers/traum_provider.dart';
 import 'package:prophetie_app/providers/premium_provider.dart';
-import 'package:prophetie_app/services/match_suggestion_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'widgets/main_navigation.dart';
 import 'package:another_flushbar/flushbar.dart';
@@ -187,7 +186,6 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ProphetieProvider()),
         ChangeNotifierProvider(create: (_) => TraumProvider()),
         ChangeNotifierProvider.value(value: premiumProvider),
-        Provider(create: (_) => MatchSuggestionService()),
       ],
       child: const MyApp(),
     ),
