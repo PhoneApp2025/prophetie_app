@@ -6,8 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import '../models/connection_item.dart';
 import '../models/connection_pair.dart';
+import '../services/match_suggestion_service.dart';
+import '../widgets/suggestion_card.dart';
+import '../widgets/connection_card.dart';
 
 class UebereinstimmungenScreen extends StatefulWidget {
   const UebereinstimmungenScreen({super.key});
@@ -18,12 +22,33 @@ class UebereinstimmungenScreen extends StatefulWidget {
 }
 
 class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
-  late Future<List<ConnectionPair>> _future;
+  late Future<(List<MatchSuggestion>, List<ConnectionPair>)> _dataFuture;
 
   @override
   void initState() {
     super.initState();
-    _future = ConnectionService.fetchConnectionsAll();
+    _dataFuture = _fetchData();
+  }
+
+  Future<(List<MatchSuggestion>, List<ConnectionPair>)> _fetchData() async {
+    final suggestionService = Provider.of<MatchSuggestionService>(context, listen: false);
+
+    // Fetch both suggestions and connections concurrently
+    final results = await Future.wait([
+      suggestionService.generateSuggestions(),
+      ConnectionService.fetchConnectionsAll(),
+    ]);
+
+    final suggestionResult = results[0] as SuggestionResult;
+    final connections = results[1] as List<ConnectionPair>;
+
+    return (suggestionResult.matches, connections);
+  }
+
+  void _refreshAll() {
+    setState(() {
+      _dataFuture = _fetchData();
+    });
   }
 
   @override
@@ -33,16 +58,16 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
         title: const Text('Übereinstimmungen'),
         actions: [
           IconButton(
-            tooltip: 'Neu berechnen',
+            tooltip: 'Neu berechnen & Suchen',
             icon: const Icon(Icons.autorenew_rounded),
             onPressed: () async {
               if (!mounted) return;
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text('Alle Übereinstimmungen neu berechnen?'),
+                  title: const Text('Neu berechnen & nach Vorschlägen suchen?'),
                   content: const Text(
-                    'Alte, nicht mehr passende Verbindungen werden gelöscht.',
+                    'Bestehende Verbindungen werden aktualisiert und neue Vorschläge gesucht. Das kann einen Moment dauern.',
                   ),
                   actions: [
                     TextButton(
@@ -62,16 +87,15 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Berechnung gestartet…')),
                 );
-                final count = await ConnectionService.rebuildAllConnections();
+                // We don't need the count, just trigger the rebuild.
+                await ConnectionService.rebuildAllConnections();
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Fertig. $count Übereinstimmungen.'),
+                  const SnackBar(
+                    content: Text('Berechnung abgeschlossen. Lade Ergebnisse...'),
                   ),
                 );
-                setState(() {
-                  _future = ConnectionService.fetchConnectionsAll();
-                });
+                _refreshAll(); // This will fetch both new suggestions and updated connections
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(
@@ -82,8 +106,8 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<ConnectionPair>>(
-        future: _future,
+      body: FutureBuilder<(List<MatchSuggestion>, List<ConnectionPair>)>(
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -91,23 +115,66 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Fehler: ${snapshot.error}'));
           }
-          final pairs = snapshot.data ?? [];
-          if (pairs.isEmpty) {
+
+          final suggestions = snapshot.data?.$1 ?? [];
+          final connections = snapshot.data?.$2 ?? [];
+
+          if (suggestions.isEmpty && connections.isEmpty) {
             return const Center(
-              child: Text('Keine Übereinstimmungen gefunden.'),
+              child: Text('Keine Vorschläge oder Verbindungen gefunden.'),
             );
           }
+
           return ListView.builder(
-            itemCount: pairs.length,
+            // +1 for each header if lists are not empty
+            itemCount: (suggestions.isNotEmpty ? suggestions.length + 1 : 0) +
+                       (connections.isNotEmpty ? connections.length + 1 : 0),
             itemBuilder: (context, index) {
-              final pair = pairs[index];
-              return ListTile(
-                title: Text('${pair.first.title} ↔ ${pair.second.title}'),
-                subtitle: Text(pair.relationSummary ?? ''),
-              );
+              // Handle suggestions section
+              if (suggestions.isNotEmpty) {
+                if (index == 0) {
+                  return _buildSectionHeader('Vorgeschlagene Matches');
+                }
+                if (index <= suggestions.length) {
+                  final suggestion = suggestions[index - 1];
+                  return SuggestionCard(
+                    key: ValueKey(suggestion.pairKey),
+                    suggestion: suggestion,
+                    onAction: _refreshAll,
+                  );
+                }
+                // Adjust index for the connections section
+                index -= (suggestions.length + 1);
+              }
+
+              // Handle connections section
+              if (connections.isNotEmpty) {
+                if (index == 0) {
+                  return _buildSectionHeader('Bestätigte Verbindungen');
+                }
+                if (index <= connections.length) {
+                  final pair = connections[index - 1];
+                  return ConnectionCard(pair);
+                }
+              }
+
+              return null; // Should not happen
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
       ),
     );
   }
