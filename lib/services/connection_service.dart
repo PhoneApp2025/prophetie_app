@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +8,207 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../models/connection_item.dart';
 import '../models/connection_pair.dart';
+
+class UebereinstimmungenScreen extends StatefulWidget {
+  const UebereinstimmungenScreen({super.key});
+
+  @override
+  State<UebereinstimmungenScreen> createState() =>
+      _UebereinstimmungenScreenState();
+}
+
+class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
+  List<ConnectionPair>? _pairs;
+  bool _isLoading = true;
+  String? _error;
+  final Set<String> _processingPairs = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConnections();
+  }
+
+  Future<void> _loadConnections({bool force = false}) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final result = force
+          ? (await ConnectionService.rebuildAllConnections(),
+            await ConnectionService.fetchConnectionsAll())
+          : await ConnectionService.fetchConnectionsAll();
+      if (!mounted) return;
+      setState(() {
+        _pairs = result is List<ConnectionPair> ? result : result.$2;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Fehler beim Laden: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleAccept(ConnectionPair pair) async {
+    final pairKey = ConnectionService._pairKey(pair.first, pair.second);
+    setState(() => _processingPairs.add(pairKey));
+    try {
+      await ConnectionService.acceptConnection(pair);
+      setState(() => _pairs!.removeWhere((p) =>
+          ConnectionService._pairKey(p.first, p.second) == pairKey));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Übereinstimmung akzeptiert.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Akzeptieren: $e')),
+      );
+    } finally {
+      setState(() => _processingPairs.remove(pairKey));
+    }
+  }
+
+  Future<void> _handleReject(ConnectionPair pair) async {
+    final pairKey = ConnectionService._pairKey(pair.first, pair.second);
+    setState(() => _processingPairs.add(pairKey));
+    try {
+      await ConnectionService.rejectConnection(pair);
+      setState(() => _pairs!.removeWhere((p) =>
+          ConnectionService._pairKey(p.first, p.second) == pairKey));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Übereinstimmung abgelehnt.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Ablehnen: $e')),
+      );
+    } finally {
+      setState(() => _processingPairs.remove(pairKey));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Übereinstimmungen'),
+        actions: [
+          IconButton(
+            tooltip: 'Neu berechnen',
+            icon: const Icon(Icons.autorenew_rounded),
+            onPressed: () async {
+              if (!mounted) return;
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Alle Übereinstimmungen neu berechnen?'),
+                  content: const Text(
+                    'Alte, nicht mehr passende Verbindungen werden gelöscht.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Abbrechen'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Starten'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Berechnung gestartet…')),
+              );
+              await _loadConnections(force: true);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fertig.')),
+              );
+            },
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text(_error!));
+    }
+    if (_pairs == null || _pairs!.isEmpty) {
+      return const Center(
+        child: Text('Keine Übereinstimmungen gefunden.'),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(8.0),
+      itemCount: _pairs!.length,
+      itemBuilder: (context, index) {
+        final pair = _pairs![index];
+        final pairKey = ConnectionService._pairKey(pair.first, pair.second);
+        final isProcessing = _processingPairs.contains(pairKey);
+
+        return Card(
+          elevation: 2.0,
+          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${pair.first.title} ↔ ${pair.second.title}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16.0,
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Text(
+                  pair.relationSummary ?? '',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 12.0),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (isProcessing)
+                      const CircularProgressIndicator()
+                    else ...[
+                      TextButton(
+                        onPressed: () => _handleReject(pair),
+                        child: const Text('Ablehnen'),
+                      ),
+                      const SizedBox(width: 8.0),
+                      ElevatedButton(
+                        onPressed: () => _handleAccept(pair),
+                        child: const Text('Akzeptieren'),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 /// Holt Embeddings per Qwen AI (robust mit Retry & Timeout)
 Future<List<List<double>>?> fetchQwenEmbeddings(List<String> texts) async {
@@ -321,6 +523,7 @@ class ConnectionService {
     List<ConnectionItem> all,
     Map<String, List<double>> embeddings, {
     double threshold = 0.68,
+    Set<String> rejectedKeys = const {},
   }) {
     final byKey = {for (final it in all) _keyOf(it): it};
     final results = <MapEntry<ConnectionPair, double>>[];
@@ -335,6 +538,9 @@ class ConnectionService {
         if (eb == null) continue;
 
         if (_keyOf(a) == _keyOf(b)) continue; // defensive
+
+        final pairKey = _pairKey(a, b);
+        if (rejectedKeys.contains(pairKey)) continue;
 
         final raw = _cosineSimilarity(ea, eb);
         final sim = raw.clamp(-1.0, 1.0);
@@ -444,12 +650,208 @@ class ConnectionService {
     return existing;
   }
 
+  static Future<void> acceptConnection(ConnectionPair pair) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final pairKey = _pairKey(pair.first, pair.second);
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('connections')
+        .doc(pairKey)
+        .update({'pinned': true, 'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  static Future<void> rejectConnection(ConnectionPair pair) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final pairKey = _pairKey(pair.first, pair.second);
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    // Delete from connections
+    final connectionDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('connections')
+        .doc(pairKey);
+    batch.delete(connectionDoc);
+
+    // Add to rejected_connections (as a blocklist)
+    final rejectedDoc = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('rejected_connections')
+        .doc(pairKey);
+    batch.set(rejectedDoc, {'rejectedAt': FieldValue.serverTimestamp()});
+
+    await batch.commit();
+  }
+
+  static Future<Set<String>> _loadRejectedConnectionKeys(String uid) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('rejected_connections')
+        .get();
+    return snap.docs.map((d) => d.id).toSet();
+  }
+
+  static Future<int> rebuildAllConnections({double threshold = 0.7}) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    final rejectedKeys = await _loadRejectedConnectionKeys(uid);
+
+    final dreams = await _loadItems('traeume', ItemType.dream, uid);
+    final props = await _loadItems('prophetien', ItemType.prophecy, uid);
+    final all = [
+      ...dreams,
+      ...props,
+    ]
+        .where((i) => i.text.trim() != 'Wird analysiert...')
+        .where((i) => !_isLowInfoText(i.text))
+        .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (all.length < 2) {
+      await _deleteConnectionsNotIn(uid, <String>{});
+      return 0;
+    }
+
+    // Vollständiger Rebuild: erzeugt absichtlich alle Embeddings neu (kann Rate Limits triggern)
+    final embeddings = await _ensureEmbeddings(uid, all, force: true);
+    final pairs = _computePairsFromEmbeddings(
+      all,
+      embeddings,
+      threshold: threshold,
+      rejectedKeys: rejectedKeys,
+    );
+
+    await _persistPairs(uid, pairs);
+    final keepIds = pairs.map((p) => _pairKey(p.first, p.second)).toSet();
+    await _deleteConnectionsNotIn(uid, keepIds);
+    return pairs.length;
+  }
+
+  static Future<List<ConnectionPair>> _loadSavedPairs(
+    String uid,
+    List<ConnectionItem> all, {
+    int? limit,
+    Set<String> rejectedKeys = const {},
+  }) async {
+    final index = {for (final it in all) _keyOf(it): it};
+    var query = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('connections')
+        .orderBy('updatedAt', descending: true);
+    if (limit != null) {
+      query = query.limit(limit);
+    }
+    final snap = await query.get();
+
+    final out = <ConnectionPair>[];
+    final seen = <String>{};
+
+    final docs = snap.docs.where((d) => !rejectedKeys.contains(d.id));
+
+    for (final d in docs) {
+      final data = d.data();
+      final aId = data['firstId'] as String?;
+      final bId = data['secondId'] as String?;
+      final aType = data['firstType'] as String?;
+      final bType = data['secondType'] as String?;
+      if (aId == null || bId == null || aType == null || bType == null) {
+        continue;
+      }
+
+      final aTypeNorm = _normalizeType(aType);
+      final bTypeNorm = _normalizeType(bType);
+
+      final a = index['$aTypeNorm:$aId'] ?? index['$aType:$aId'];
+      final b = index['$bTypeNorm:$bId'] ?? index['$bType:$bId'];
+      if (a == null || b == null) continue;
+
+      final key = _pairKey(a, b);
+      if (seen.contains(key)) continue;
+      seen.add(key);
+
+      var simRaw = data['similarity'];
+      double sim;
+      if (simRaw is num) {
+        sim = simRaw.toDouble();
+      } else if (simRaw is String) {
+        sim = double.tryParse(simRaw.replaceAll(',', '.')) ?? 0.0;
+      } else {
+        sim = 0.0;
+      }
+      if (sim > 1.0) sim = sim / 100.0; // Migration 0..100 → 0..1
+
+      final pct = ((sim * 100).clamp(0, 100)).round();
+
+      out.add(
+        ConnectionPair(
+          first: a,
+          second: b,
+          relationSummary: 'Semantische Ähnlichkeit ${pct}%',
+          similarity: sim,
+        ),
+      );
+    }
+    out.sort((x, y) => y.second.timestamp.compareTo(x.second.timestamp));
+    return out;
+  }
+
   @Deprecated(
-    'This method is deprecated and will be removed. Use MatchService instead.',
+    'Nutze fetchConnectionsAll() – diese Methode existiert nur noch als Wrapper für die Home-Ansicht.',
   )
   static Future<List<ConnectionPair>> fetchConnections() async {
-    // This method remains for backward compatibility, but should not be used for new features.
-    // It returns an empty list to avoid breaking existing UI that might call it.
-    return [];
+    final all = await fetchConnectionsAll();
+    return all.take(4).toList();
+  }
+
+  /// Holt ALLE Matches ohne Limit
+  static Future<List<ConnectionPair>> fetchConnectionsAll() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    final rejectedKeys = await _loadRejectedConnectionKeys(uid);
+
+    final dreams = await _loadItems('traeume', ItemType.dream, uid);
+    final props = await _loadItems('prophetien', ItemType.prophecy, uid);
+    final all = [
+      ...dreams,
+      ...props,
+    ]
+        .where((i) => i.text.trim() != 'Wird analysiert...')
+        .where((i) => !_isLowInfoText(i.text))
+        .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (all.length < 2) return [];
+
+    final saved = await _loadSavedPairs(uid, all, rejectedKeys: rejectedKeys);
+
+    final connectedKeys = <String>{};
+    for (final p in saved) {
+      connectedKeys.add(_keyOf(p.first));
+      connectedKeys.add(_keyOf(p.second));
+    }
+    final newItems =
+        all.where((it) => !connectedKeys.contains(_keyOf(it))).toList();
+
+    final embeddings = await _ensureEmbeddings(uid, all, force: false);
+
+    final byKey = {for (final it in all) _keyOf(it): it};
+    final scored = _computePairsFromEmbeddings(
+      all,
+      embeddings,
+      rejectedKeys: rejectedKeys,
+    );
+
+    if (scored.isNotEmpty) {
+      await _persistPairs(uid, scored);
+      final savedAll =
+          await _loadSavedPairs(uid, all, rejectedKeys: rejectedKeys);
+      return savedAll;
+    }
+
+    return saved;
   }
 }

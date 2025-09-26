@@ -7,8 +7,6 @@ class ConnectionItem {
   final ItemType type;
   final DateTime timestamp;
   final String? filePath; // Audio-URL, falls vorhanden
-  final List<String> labels;
-
   ConnectionItem({
     required this.title,
     required this.id,
@@ -16,6 +14,5 @@ class ConnectionItem {
     required this.type,
     required this.timestamp,
     this.filePath,
-    this.labels = const [],
   });
 }
