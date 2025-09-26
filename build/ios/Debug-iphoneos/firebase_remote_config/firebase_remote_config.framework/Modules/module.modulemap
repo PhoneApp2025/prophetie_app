@@ -1,0 +1,11 @@
+framework module firebase_remote_config {
+  umbrella header "firebase_remote_config-umbrella.h"
+
+  export *
+  module * { export * }
+}
+
+module firebase_remote_config.Swift {
+  header "firebase_remote_config-Swift.h"
+  requires objc
+}
