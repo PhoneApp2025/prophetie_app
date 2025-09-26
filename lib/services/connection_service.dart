@@ -35,13 +35,13 @@ class _UebereinstimmungenScreenState extends State<UebereinstimmungenScreen> {
       _error = null;
     });
     try {
-      final result = force
-          ? (await ConnectionService.rebuildAllConnections(),
-            await ConnectionService.fetchConnectionsAll())
-          : await ConnectionService.fetchConnectionsAll();
+      if (force) {
+        await ConnectionService.rebuildAllConnections();
+      }
+      final connections = await ConnectionService.fetchConnectionsAll();
       if (!mounted) return;
       setState(() {
-        _pairs = result is List<ConnectionPair> ? result : result.$2;
+        _pairs = connections;
         _isLoading = false;
       });
     } catch (e) {
